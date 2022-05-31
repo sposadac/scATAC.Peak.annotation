@@ -67,7 +67,7 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
     cat(dim(gene_element), "\n")
   }
   if ( filter_reg_chr ) {
-    cat("filtering for genes on regular genes", "\n")	  
+    cat("filtering for genes on regular chromosomes", "\n")	  
     gene_element <- gene_element[grep("chr", gene_element$seqnames),]
   }
   anno_list <- list(annotations, gene_element)
