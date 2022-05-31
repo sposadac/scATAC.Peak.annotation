@@ -172,7 +172,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   cat("start_overlapping_peaks", "\n")
   cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
-  plan(multisession,workers = cores )
+  future::plan(multisession,workers = cores )
   peak_list <- list()
   computing <- cores*1000
   data_iterat <- nrow(peaks)%/%computing
@@ -265,7 +265,7 @@ give_activity <- function(gene_peaks, peak_matrix) {
   }
   if ((nrow(activity_overlap) %% computing) != 0 ) {
     activity_list[[length(activity_list) +1 ]] <- activity_overlap[(length(activity_list)*computing+1):nrow(activity_overlap),]}
-  plan(multisession,workers = cores )
+  future::plan(multisession,workers = cores )
   activity_overlap <- c()
   gene_peaks_overlap <- c()
   for (n in 1:length(peak_list)) {
@@ -366,7 +366,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
   if ((nrow(peaks_not_annotated) %% computing) != 0 ) {
     peak_list[[length(peak_list) +1 ]] <- peaks_not_annotated[(length(peak_list)*computing+1):nrow(peaks_not_annotated),]}
 
-  plan(multisession,workers = cores )
+  future::plan(multisession,workers = cores )
   for (n in 1:length(peak_list)) {
 
     cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
@@ -504,7 +504,7 @@ peak_overlap <- function(peak_features, combined.peaks, do.aggregate=F,peak_matr
   }
   if ((nrow(peaks) %% computing) != 0 ) {
     peak_list[[length(peak_list) +1 ]] <- peaks[(length(peak_list)*computing+1):nrow(peaks),]}
-  plan(multisession,workers = cores )
+  future::plan(multisession,workers = cores )
   for (n in 1:length(peak_list)) {
     cat("get overlapping peaks", "\n")
     cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
