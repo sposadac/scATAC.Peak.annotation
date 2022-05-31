@@ -2,6 +2,7 @@
 #' @import Matrix
 #' @import Matrix.utils
 #' @import GenomicRanges
+#' @import future
 #'
 #' @title  get gene annotations from a gtf file
 #' @description function to read in gene annotation from a gtf file and filters these annotation based on gene element, coding information and chromosomes.
