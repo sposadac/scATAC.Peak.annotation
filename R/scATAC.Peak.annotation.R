@@ -170,7 +170,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     gene_chrom_index[[chromosomes[i]]][["gene_names"]] <-  data$gene_name[index]
   }
   cat("start_overlapping_peaks", "\n")
-  cores <- as.numeric(availableCores() -2)
+  cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
   plan(multisession,workers = cores )
   peak_list <- list()
@@ -246,7 +246,7 @@ give_activity <- function(gene_peaks, peak_matrix) {
   activity_overlap <- peak_matrix[index_overlap,]
   gene_peaks_overlap <- gene_peaks[index_overlap,]
   cat("split for parallelization", "\n")
-  cores <- as.numeric(availableCores() -2)
+  cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
 
   peak_list <- list()
@@ -354,7 +354,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
   peaks_not_annotated <- peaks[peaks[,4] == "nomatch",]
 
   cat("start_looking_for_closest_gene", "\n")
-  cores <- as.numeric(availableCores() -2)
+  cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
 
   peak_list <- list()
@@ -493,7 +493,7 @@ peak_overlap <- function(peak_features, combined.peaks, do.aggregate=F,peak_matr
   if( class(as.numeric(peaks[[1]][3])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
   peaks <- do.call(rbind, peaks)
 
-  cores <- as.numeric(availableCores() -2)
+  cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
   computing <- cores*1000
   data_iterat <- nrow(peaks)%/%computing
