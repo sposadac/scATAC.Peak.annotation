@@ -68,8 +68,9 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
     cat(dim(gene_element), "\n")
   }
   if ( filter_reg_chr ) {
-    cat("filtering for genes on regular chromosomes", "\n")	  
+    cat("filtering for genes on regular chromosomes", "\n")  
     gene_element <- gene_element[grep("chr", gene_element$seqnames),]
+    cat(dim(gene_element), "\n")
   }
   anno_list <- list(annotations, gene_element)
   names(anno_list) <- c("annotation", paste(gelement, coding, sep = "_"))
@@ -102,12 +103,12 @@ too_large <- function(annotations=NULL,gene_element=NULL, tolarge=5e+05 ) {
 }
 
 
-#' @title prolong gene range proximal.
-#' @description this function prolongs the gene ranges in the annotation proximal by a given number to include the promoter region or other proximal regulatory elements.
+#' @title prolong gene range upstream of TSS.
+#' @description this function prolongs the gene ranges in the annotation upstream of TSS by a given number to include the promoter region or other proximal regulatory elements.
 #' @param annotations list. Output from get \code{get_annotation}.
 #' @param gene_element data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large} or similar annotation with second column representing start and third column representing end of a peak.
-#' @param prolong number. Indicating range the range of gene elements is prolonged proximal.
-#' @return data.frame of proximal prolonged annotations.
+#' @param prolong number. Indicating the range gene is prolonged upstream of TSS.
+#' @return data.frame of upstream prolonged annotations.
 #' @examples
 #' anno_prolong <- prolong_upstream(gene_element = anno_prolong)
 #' @export
@@ -319,11 +320,11 @@ give_activity <- function(gene_peaks, peak_matrix) {
 }
 
 #' @title Annotates peaks to closest gene.
-#' @description This function takes the output of \code{peak_on_gene} and annotates peaks which do not fall onto genes to its closest proximal as well as closest distal genes(if closest gene is not proximal). The distances to closest proximal and distal genes is also calculated.
+#' @description This function takes the output of \code{peak_on_gene} and annotates peaks which do not fall onto genes to its closest downstream as well as closest upstream genes(if closest gene is not downstream of peak). The distances to closest (downstream) genes of each peak is also calculated and returned.
 #' @param gene_peaks data.frame of peak annotations. Output of \code{peak_on_gene} with peak annotated to the genes they fall onto.
 #' @param annotations list. Output from get \code{get_annotation}.
 #' @param gene_element data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large}, \code{prolong_upstream} or similar annotation with second column representing start and third column representing end of a peak.
-#' @return data.frame with a row for each peak, containing chromosome information, start- and end position and the closest proximal gene and if the closest gene is not proximal the closest distal gene as well. Distances to closest (proximal) gene is included. And given input is the output of \code{peak_on_gene}, if peak is falling on gene, this gene represents closest gene.
+#' @return data.frame with a row for each peak, containing chromosome information, start- and end position and the closest downstream gene and if the closest gene is not downstream of the peak, the closest upstream gene as well. Distances to closest (downstream) gene is included. And given input is the output of \code{peak_on_gene}, if peak is falling on gene, this gene represents closest gene.
 #' @examples
 #' closest_gene <- peaks_closest_gene(peak_genes,anno_prolong)
 #' @export
@@ -350,7 +351,8 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
   }
   cat("separate into peaks with no match and peaks which showed overlap", "\n")
   peaks_annotated <- peaks[peaks[,4] != "nomatch",]
-  peaks_annotated <- cbind(peaks_annotated, closest_proximal_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])
+  peaks_annotated <- cbind(peaks_annotated, closest_downstream_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])
+
   peaks_not_annotated <- peaks[peaks[,4] == "nomatch",]
 
   cat("start_looking_for_closest_gene", "\n")
@@ -377,23 +379,23 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
       gene_starts <- chr_index[[chr]][["starts"]]
       gene_ends <- chr_index[[chr]][["ends"]]
 
-      left <- gene_starts - as.numeric(peak[x,3]) ### proximal +
-      right <- as.numeric(peak[x,2]) - gene_ends ### proximal -
+      left <- gene_starts - as.numeric(peak[x,3]) ### upstream +
+      right <- as.numeric(peak[x,2]) - gene_ends ### upstream -
       abs_left <- abs(left) ### shortest distance to gene start
       abs_right <- abs(right) ### shortest distance to gene ends
       left[left < 0] <- Inf  ## if < 0 peak starts after genes start
       right[right < 0] <- Inf ## if < 0 peak starts before genes end
       strand <- chr_index[[chr]][["strand"]]
-      left[strand == "-"] <- Inf  ### peak before gene start but genes on the - strand => not proximal
-      right[strand == "+"] <- Inf ### peak after gene end but genes on the + strand => not proximal
+      left[strand == "-"] <- Inf  ### peak before gene start but genes on the - strand => not upstream
+      right[strand == "+"] <- Inf ### peak after gene end but genes on the + strand => not upstream
       if (min(left) < min(right)) {
-        gene_proximal <- paste(paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|"),min(left), sep = "_")
+        gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|"),min(left), sep = "_")
       }
       else if (min(left) > min(right)) {
-        gene_proximal <- paste(paste(chr_index[[chr]][["gene_names"]][which(right == min(right))], collapse = "|"), min(right), sep = "_")
+        gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(right == min(right))], collapse = "|"), min(right), sep = "_")
       }
       else{
-        gene_proximal <- "no_proximal"
+        gene_downstream <- "no_downstream"
       }
       if (min(abs_left) < min(abs_right)) {
         gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_left == min(abs_left))], collapse = "|"), min(abs_left), sep = "_")
@@ -401,7 +403,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
       else{
         gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|"), min(abs_right), sep = "_")
       }
-      return(c(peak[x,], gene_proximal, gene_general))
+      return(c(peak[x,], gene_downstream, gene_general))
 
     },chr_index=gene_chrom_index, peak=peak_list[[n]])
     end_time <- Sys.time()
