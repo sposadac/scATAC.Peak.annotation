@@ -139,11 +139,12 @@ prolong_upstream <- function(annotations=NULL,gene_element=NULL, prolong=2000) {
 #' @param annotations list. Output from get \code{get_annotation}.
 #' @param gene_element data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large}, \code{prolong_upstream} or similar annotation with second column representing start and third column representing end of a peak.
 #' @param split character vector(or object which can be coerced to such), used for splitting each element of \code{peak_features} into a vector with 3 elements containing chromosome information, start= and end position of the peak.
+#' @param TSSmode logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand)  
 #' @return data.frame with a row for each peak, containing chromosome information, start- and end position as well as the gene on which the peak is falling or "nomatch" if peak is falling on no gene.
 #' @examples
-#' peak_genes <- peaks_on_gene2(peak_features = rownames(merged_atac_filt), gene_element = anno_prolong)
+#' peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element = anno_prolong)
 #' @export
-peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, split="[-:]") {
+peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, split="[-:]", TSSmode=F) {
   start_time2 <- Sys.time()
   if ( is.null(annotations) && is.null(gene_element)) {stop("either annotations or gene_element has to be provided")}
   if ( !is.null(annotations) && !is.null(gene_element)) {stop("either annotations OR gene_ement has to be provided")}
@@ -169,6 +170,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     gene_chrom_index[[chromosomes[i]]][["starts"]] <- as.numeric(data$start)[index]
     gene_chrom_index[[chromosomes[i]]][["ends"]] <- as.numeric(data$end)[index]
     gene_chrom_index[[chromosomes[i]]][["gene_names"]] <-  data$gene_name[index]
+    gene_chrom_index[[chromosomes[i]]][["strand"]] <-  data$strand[index]
   }
   cat("start_overlapping_peaks", "\n")
   cores <- as.numeric(future::availableCores() -2)
@@ -186,23 +188,49 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   for (n in 1:length(peak_list)) {
     cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
     start_time <- Sys.time()
-    peak_list[[n]] <- future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index) {
+    peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index) {
       chr <- peak[x,1]
       gene_starts <- chr_index[[chr]][["starts"]]
       gene_ends <- chr_index[[chr]][["ends"]]
       peak_start <- as.numeric(peak[x,2])
       peak_end <- as.numeric(peak[x,3])
-
+      
       left1 <- gene_starts >= peak_start ### peak overlap left or span the whole gene
       left2 <- gene_starts <= peak_end
       right1 <- gene_ends >= peak_start ### peak overlap right or span the whole gene
       right2 <- gene_ends <= peak_end
       mid1 <- gene_starts <= peak_start ### peak on the gene
       mid2 <- gene_ends >= peak_end
-
+      
       gene_left <- chr_index[[chr]][["gene_names"]][left1 & left2]
       gene_right <- chr_index[[chr]][["gene_names"]][right1 & right2]
       gene_mid <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
+      if (TSSmode) { 
+      if ( length(gene_left) > 0  ) { 
+        distance <- (gene_starts - peak_start)[left1 & left2]
+        gene_left <- paste0(gene_left, chr_index[[chr]][["strand"]][left1 & left2],"TSSoverlap_dist.",distance)
+        gene_left <- sub("\\-TSSoverlap_dist.\\d+", "", gene_left)
+        }
+      if (length(gene_right) > 0) {
+        distance <- (gene_ends - peak_end)[right1 & right2]
+        gene_right <- paste0(gene_right,chr_index[[chr]][["strand"]][right1 & right2],"TSSoverlap_dist.",distance )
+        gene_right <- sub("\\+TSSoverlap_dist.\\d+", "", gene_right)
+      }
+      gene_names <- c(gene_left, gene_right, gene_mid)
+      if (length(gene_names) > 1) { gene_names <- unique(gene_names)}
+      if (length(gene_names) == 1) {
+          return(c(peak[x,],gene_names))
+      }
+      else if (length(gene_names) == 0) {
+          return(c(peak[x,], "nomatch"))
+      }
+      else {
+          to_return <- matrix(rep(peak[x,],length(gene_names)),nrow = length(gene_names), byrow = T)
+          to_return <- cbind(to_return, gene_names)
+          return(to_return)
+      }
+      }
+      else{
       gene_names <- c(gene_left, gene_right, gene_mid)
       if (length(gene_names) > 1) { gene_names <- unique(gene_names)}
       if (length(gene_names) == 1) {
@@ -215,18 +243,23 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
         overlap_nam <- paste(gene_names, collapse = "|")
         return(c(peak[x,], overlap_nam))
       }
-
+      }
     }, chr_index=gene_chrom_index, peak=peak_list[[n]])
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
   peak_list2 <- lapply(peak_list, function(x) { y <- do.call(rbind, x) })
   peak_ongene <- do.call(rbind, peak_list2)
-  rownames(peak_ongene) <- peak_features
+  if (TSSmode==T){
+    rownames(peak_ongene) <- paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])
+  }
+  else{rownames(peak_ongene) <- peak_features}
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(peak_ongene)
 }
+
+
 
 #' @title Aggregate peak counts falling onto the same gene to gene activities
 #' @description This function takes the output of \code{peak_on_gene} and the peak-cell count matrix as input and aggregates peaks falling onto the same genes to a gene-activity count matrix.
@@ -324,11 +357,12 @@ give_activity <- function(gene_peaks, peak_matrix) {
 #' @param gene_peaks data.frame of peak annotations. Output of \code{peak_on_gene} with peak annotated to the genes they fall onto.
 #' @param annotations list. Output from get \code{get_annotation}.
 #' @param gene_element data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large}, \code{prolong_upstream} or similar annotation with second column representing start and third column representing end of a peak.
+#' @param
 #' @return data.frame with a row for each peak, containing chromosome information, start- and end position and the closest downstream gene and if the closest gene is not downstream of the peak, the closest upstream gene as well. Distances to closest (downstream) gene is included. And given input is the output of \code{peak_on_gene}, if peak is falling on gene, this gene represents closest gene.
 #' @examples
 #' closest_gene <- peaks_closest_gene(peak_genes,anno_prolong)
 #' @export
-peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
+peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmode=F) {
   start_time2 <- Sys.time()
   if ( is.null(annotations) && is.null(gene_element)) {stop("either annotations or gene_element has to be provided")}
   if ( !is.null(annotations) && !is.null(gene_element)) {stop("either annotations OR gene_ement has to be provided")}
@@ -351,14 +385,25 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
   }
   cat("separate into peaks with no match and peaks which showed overlap", "\n")
   peaks_annotated <- peaks[peaks[,4] != "nomatch",]
-  peaks_annotated <- cbind(peaks_annotated, closest_downstream_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])
-
+  if ( TSSmode==T){ 
+  cat("cbind_peaks_on_gene", "\n")
+  peaks_on_gene <- peaks_annotated[grep("TSSoverlap",peaks_annotated[,4], invert = T),]
+  peaks_on_gene <- cbind(peaks_on_gene, closest_downstream_gene=rep("",nrow(peaks_on_gene)) ,closest_gene=rep("",nrow(peaks_on_gene)),  Pstart_to_TSS=rep("",nrow(peaks_on_gene)),dist_to_clos_upstream=rep("",nrow(peaks_on_gene)), dist_to_clos_gene=rep("",nrow(peaks_on_gene)))
+  cat("cbind_peaks_on_TSS", "\n")
+  peaks_annotated_TSS <- peaks_annotated[grep("TSSoverlap",peaks_annotated[,4]),]
+  peaks_annotated_TSS <- cbind(peaks_annotated_TSS, closest_downstream_gene=as.character(sub("\\_.+", "", peaks_annotated_TSS[,4])),closest_gene=as.character(sub("\\_.+", "", peaks_annotated_TSS[,4])), Pstart_to_TSS=as.character(sapply(peaks_annotated_TSS[,4], function(x){ y <- strsplit(x, "\\.")[[1]][2]})), dist_to_clos_upstream=rep("",nrow(peaks_annotated_TSS)),dist_to_clos_gene=rep("",nrow(peaks_annotated_TSS)))
+  }
+  else{ 
+  peaks_annotated <- cbind(peaks_annotated, closest_downstream_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])}
+  
   peaks_not_annotated <- peaks[peaks[,4] == "nomatch",]
-
+  peaks_nam <- rownames(peaks)
+  peaks_nam_not_annotated <- rownames(peaks_not_annotated)
+  peaks <- c()
   cat("start_looking_for_closest_gene", "\n")
   cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
-
+  
   peak_list <- list()
   computing <- cores*1000
   data_iterat <- nrow(peaks_not_annotated)%/%computing
@@ -367,18 +412,18 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
   }
   if ((nrow(peaks_not_annotated) %% computing) != 0 ) {
     peak_list[[length(peak_list) +1 ]] <- peaks_not_annotated[(length(peak_list)*computing+1):nrow(peaks_not_annotated),]}
-
+  peaks_not_annotated <- c()
   future::plan(future::multisession,workers = cores )
   for (n in 1:length(peak_list)) {
-
+    
     cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
     start_time <- Sys.time()
-    peak_list[[n]] <- future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index) {
-
+    peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index,TSSmode) {
+      
       chr <- peak[x,1]
       gene_starts <- chr_index[[chr]][["starts"]]
       gene_ends <- chr_index[[chr]][["ends"]]
-
+      
       left <- gene_starts - as.numeric(peak[x,3]) ### upstream +
       right <- as.numeric(peak[x,2]) - gene_ends ### upstream -
       abs_left <- abs(left) ### shortest distance to gene start
@@ -388,39 +433,74 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL) {
       strand <- chr_index[[chr]][["strand"]]
       left[strand == "-"] <- Inf  ### peak before gene start but genes on the - strand => not upstream
       right[strand == "+"] <- Inf ### peak after gene end but genes on the + strand => not upstream
+      if (TSSmode) {
       if (min(left) < min(right)) {
-        gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|"),min(left), sep = "_")
+        gene_downstream <- paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|")#,min(left), sep = "_")
+        distance <- min(left)
       }
       else if (min(left) > min(right)) {
-        gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(right == min(right))], collapse = "|"), min(right), sep = "_")
+        gene_downstream <- paste(chr_index[[chr]][["gene_names"]][which(right == min(right))], collapse = "|")#, min(right), sep = "_")
+        distance <- min(right)
       }
       else{
         gene_downstream <- "no_downstream"
+        distance <- ""
       }
       if (min(abs_left) < min(abs_right)) {
-        gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_left == min(abs_left))], collapse = "|"), min(abs_left), sep = "_")
+        gene_general <- paste(chr_index[[chr]][["gene_names"]][which(abs_left == min(abs_left))], collapse = "|")#, min(abs_left), sep = "_")
+        dist_general <- min(abs_left)
       }
       else{
-        gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|"), min(abs_right), sep = "_")
+        gene_general <- paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|")#, min(abs_right), sep = "_")
+        dist_general <- min(abs_right)
       }
-      return(c(peak[x,], gene_downstream, gene_general))
-
-    },chr_index=gene_chrom_index, peak=peak_list[[n]])
+      return(c(peak[x,], gene_downstream, gene_general, "", distance, dist_general))}
+      else{
+        if (min(left) < min(right)) {
+          gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|"),min(left), sep = "_")
+        }
+        else if (min(left) > min(right)) {
+          gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(right == min(right))], collapse = "|"), min(right), sep = "_")
+        }
+        else{
+          gene_downstream <- "no_downstream"
+        }
+        if (min(abs_left) < min(abs_right)) {
+          gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_left == min(abs_left))], collapse = "|"), min(abs_left), sep = "_")
+        }
+        else{
+          gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|"), min(abs_right), sep = "_")
+        }
+        return(c(peak[x,], gene_downstream, gene_general))
+      }
+      
+    },chr_index=gene_chrom_index, peak=peak_list[[n]], TSSmode=TSSmode )
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
-
+  
   peak_list2 <- lapply(peak_list, function(x) {
     y <- do.call(rbind,x)
   })
   peaks_close <- do.call(rbind,peak_list2)
-  rownames(peaks_close) <- rownames(peaks_not_annotated)
-  peaks_close <- rbind(peaks_annotated, peaks_close)
-  peaks_close <- peaks_close[rownames(peaks),]
+  rownames(peaks_close) <- peaks_nam_not_annotated
+  cat(dim(peaks_close), "\n")
+  if (TSSmode) {
+    cat(dim(peaks_annotated_TSS), "\n")
+    cat(dim(peaks_on_gene))
+    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_TSS)
+    peaks_close <- rbind(peaks_on_gene, peaks_close)
+  }
+  else{
+  cat(dim(peaks_annotated), "\n")
+  cat(dim(peaks_close), "\n")
+  peaks_close <- rbind(peaks_annotated, peaks_close)}
+  peaks_close <- peaks_close[peaks_nam,]
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(peaks_close)
 }
+
 
 #' @title Get combined overlapping peak set.
 #' @description This function takes the peaks which have been called on different samples, and thus could represent overlapping peaks with different start and or end positions to provide an overlapping peaks set.
