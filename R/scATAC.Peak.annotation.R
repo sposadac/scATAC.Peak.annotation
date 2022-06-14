@@ -111,7 +111,7 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
   gene_element <- cbind(gene_element, TSSrange=TSS_pos, TSSset=TSS_pos2)
   if ( filter_reg_chr ) {
     cat("filtering for genes on regular chromosomes", "\n")  
-    gene_element <- gene_element[grep("^chr|^X|^Y|^M|^\\d|^\\d.\\d", gene_element$seqnames),]
+    gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d.\\d$", gene_element$seqnames),]
     cat(dim(gene_element), "\n")
   }
   anno_list <- list(annotations, gene_element)
