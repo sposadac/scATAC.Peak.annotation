@@ -19,16 +19,18 @@
 #' anno_test <- get_annotation(gtf, TSL=T)
 #' @export
 get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="protein_coding", filter_reg_chr=T, TSL=F, TSLfilt=1) {
+  start_time2 <- Sys.time()
   cat("read in gtf", "\n")
   annotations <- read.delim(path_gtf, skip=skip, header=F)
   cat("filter_gene_element", "\n")
   annotations <- annotations[annotations$V3 == gelement,]
-  cat("filter_coding_information", "\n")
+  cat("get_coding_information_and_filter", "\n")
+  cat("get_gene_coding_information", "\n")
   gene_biotype <- sapply(annotations$V9, function(x){
     y <- strsplit(x, split=" ")[[1]]
+    y <- sub(";", "", y)
     if ("gene_biotype" %in% y) {
       z <- y[which( y == "gene_biotype")+1]
-      z <- sub(";", "", z)
     }
     else{
       z <- "no_gene_biotype"
@@ -36,35 +38,49 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
   })
   gene_biotype <- as.character(gene_biotype)
   annotations <- cbind(annotations, gene_biotype=gene_biotype)
-  annotations <- annotations[annotations$gene_biotype ==  coding,]
-  cat("retrieve gene name and cbind", "\n")
+  cat("get_transcript_coding_information", "\n")
+  transcript_biotype <- sapply(annotations$V9, function(x){
+    y <- strsplit(x, split=" ")[[1]]
+    y <- sub(";", "", y)
+    if ("transcript_biotype" %in% y) {
+      z <- y[which( y == "transcript_biotype")+1]
+    }
+    else{
+      z <- "no_transcript_biotype"
+    }
+  })
+  transcript_biotype <- as.character(transcript_biotype) 
+  annotations <- cbind(annotations, transcript_biotype=transcript_biotype) 
+    
+  annotations <- annotations[annotations$gene_biotype %in%  coding | annotations$transcript_biotype %in% coding,]
+  cat("retrieve gene name", "\n")
   gene_name <- sapply(annotations$V9, function(x){
     y <- strsplit(x, split = " ")[[1]]
+    y <- sub(";", "", y)
     if ("gene_name" %in% y) {
       z <- y[which( y == "gene_name")+1]
-      z <- sub(";", "", z)
     }
     else{
       z <- y[which( y == "gene_id")+1]
-      z <- sub(";", "", z)
     }
   })
   gene_name <- as.character(gene_name)
   annotations <- cbind(annotations, gene_name=gene_name)
-  cat("retrieve gene ID and cbind", "\n")
+  cat("retrieve gene ID", "\n")
   gene_id <- sapply(annotations$V9, function(x){
     y <- strsplit(x, split = " ")[[1]]
+    y <- sub(";", "", y)
     z <- y[which( y == "gene_id")+1]
-    z <- sub(";", "", z)
   })
   gene_id <- as.character(gene_id)
   annotations <- cbind(annotations, gene_id=gene_id)
   if (TSL){
+    cat("retrieve gene TSL", "\n")
     get_tsl <- sapply(annotations$V9, function(x){
       y <- strsplit(x, split = " ")[[1]]
+      y <- sub(";", "", y)
       if ("transcript_support_level" %in% y) {
         z <- y[which( y == "transcript_support_level")+1]
-        z <- sub(";", "", z)
       }
       else{
         z <- "no TSL"
@@ -74,48 +90,55 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
   }
   
   if (TSL) {
-    colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype", "gene_name", "gene_id", "TSL")
-    gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "TSL")]
+    colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype","transcript_biotype", "gene_name", "gene_id", "TSL")
+    gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_biotype","TSL")]
     gene_element <- gene_element[gene_element$TSL == TSLfilt,] 
   }
   else{
-  colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype", "gene_name", "gene_id")
-  gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype")]
+  colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype","transcript_biotype" ,"gene_name", "gene_id")
+  gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_biotype")]
   }
   TSS_pos <- rep(0, nrow(gene_element))
   TSS_pos[which(gene_element$strand == "+")] <- gene_element$start[which(gene_element$strand == "+")]
   TSS_pos[which(gene_element$strand == "-")] <- gene_element$end[which(gene_element$strand == "-")]
   TSS_pos <- as.character(TSS_pos)
   TSS_pos2 <- TSS_pos
+  gene_element <- cbind(gene_element, TSSrange=TSS_pos, TSSset=TSS_pos2)
+  
   non_unique <- names(table(gene_element$gene_name)[table(gene_element$gene_name) != 1 ])
   cat("collapse genes to locus", "\n")
-  for (i in 1:length(non_unique)) {
-    cat(non_unique[i], "\n")
-    index <- which(gene_element$gene_name == non_unique[i])
-    cat(length(index), "\n")
-    mini <- min(gene_element[index, "start"])
-    maxi <- max(gene_element[index, "end"])
-    tss_pos_col <- as.numeric(TSS_pos[index])
-    tss_pos_col <- paste0(min(tss_pos_col),"-", max(tss_pos_col))
-    tss_pos_col2 <- paste(TSS_pos[index], collapse = "|")
-    cat(dim(gene_element), "\n")
-    gene_element[index[1],"start"] <- mini
-    gene_element[index[1], "end"] <- maxi
-    TSS_pos[index[1]] <- tss_pos_col
-    TSS_pos2[index[1]] <- tss_pos_col2
-    gene_element <- gene_element[-index[-1],]
-    TSS_pos <- TSS_pos[-index[-1]]
-    TSS_pos2 <- TSS_pos2[-index[-1]]
-    cat(dim(gene_element), "\n")
-  }
-  gene_element <- cbind(gene_element, TSSrange=TSS_pos, TSSset=TSS_pos2)
+  
+  cores <- as.numeric(future::availableCores() -2)
+  cat("available_cores:", cores, "\n")
+  start_time <- Sys.time()
+  future::plan(future::multisession,workers = cores )
+  
+  non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element) {
+    index <- which(gene_element$gene_name == non_unique[x])
+    uni <- gene_element[index[1],]
+    tss_pos_col <- as.numeric(gene_element$TSSrange[index])
+    uni[9] <- paste0(min(tss_pos_col),"-", max(tss_pos_col))
+    uni[10] <- paste(gene_element$TSSrange[index], collapse = "|")
+    uni[2] <- min(gene_element[index, "start"])
+    uni[3] <- max(gene_element[index, "end"])
+    return(uni)
+  }, non_unique=non_unique, gene_element=gene_element)
+  end_time <- Sys.time()
+  cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
+  
+  non_unique_collapse <- do.call(rbind, non_unique_collapse)
+  
+  gene_element <- rbind(gene_element[!gene_element$gene_name %in% non_unique,], non_unique_collapse)
+
   if ( filter_reg_chr ) {
     cat("filtering for genes on regular chromosomes", "\n")  
-    gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d.\\d$", gene_element$seqnames),]
+    gene_element <- gene_element[grep("^chr|^X|^Y|^MT$|^M$|^\\d|^\\d.\\d", gene_element$seqnames),]
     cat(dim(gene_element), "\n")
   }
-  anno_list <- list(annotations, gene_element)
-  names(anno_list) <- c("annotation", paste(gelement, coding, sep = "_"))
+  anno_list <- list(annotations[order(annotations$gene_name),], gene_element[order(gene_element$gene_name),])
+  names(anno_list) <- c("annotation", paste(gelement, paste(coding, collapse = "_"), sep = "_"))
+  end_time2 <- Sys.time()
+  cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(anno_list)
 }
 
