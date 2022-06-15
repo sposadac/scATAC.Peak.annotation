@@ -23,7 +23,7 @@
 #' anno_test <- get_annotation(gtf, TSL=T, TSLfilt=1)
 #' anno_test <- get_annotation(gtf, TSL=T, TSLfilt=c(1,2))
 #' @export
-get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="protein_coding", filter_reg_chr=T, TSL=F, filter_,TSLfilt=NULL, filter_transcript_biotype=F) {
+get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="protein_coding", filter_reg_chr=T, TSL=F,TSLfilt=NULL, filter_transcript_biotype=F) {
   start_time2 <- Sys.time()
   cat("read in gtf", "\n")
   annotations <- read.delim(path_gtf, skip=skip, header=F)
