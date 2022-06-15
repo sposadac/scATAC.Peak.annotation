@@ -8,9 +8,10 @@
 #' @description function to read in gene annotation from a gtf file and filters these annotation based on gene element, coding information and chromosomes.
 #' @param path_gtf path to gtf file
 #' @param skip number of lines to skip in the gtf file until the first gene annotation.
-#' @param gelement denotes which gene element are filtered. Available options: "transcript", "exon", "intron"
-#' @param coding denotes which genes are filtered based on coding information. Available options: "protein_coding",
+#' @param gelement denotes which gene element are filtered. Available options: "transcript", "exon", "intron" etc.
+#' @param coding denotes which genes are filtered based on gene biotype and transcript biotype information. Available options: "protein_coding", c("processed_transcript", "protein_coding"), etc.
 #' @param filter_reg_chr logical. If \code{T}, only genes are included which are on regular chromosomes.
+#' @param filter_transcript_biotype logical. If \code{T}, filtering based on transcript biotype              
 #' @return list containing two slots of full annotation filtered for \code{gelement} and \code{coding} aswell as annotations collpased per gene into gene loci.
 #'   \item{annotation}{annotation filtered for \code{gelement} and \code{coding}}
 #'   \item{gelement_coding}{annotation filtered for \code{gelement} and \code{coding} and collpased per gene into gene loci}
@@ -18,7 +19,7 @@
 #' anno <- get_annotation(gtf)
 #' anno_test <- get_annotation(gtf, TSL=T)
 #' @export
-get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="protein_coding", filter_reg_chr=T, TSL=F, TSLfilt=1) {
+get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="protein_coding", filter_reg_chr=T, TSL=F ,TSLfilt=1, filter_transcript_biotype=F) {
   start_time2 <- Sys.time()
   cat("read in gtf", "\n")
   annotations <- read.delim(path_gtf, skip=skip, header=F)
@@ -51,8 +52,10 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
   })
   transcript_biotype <- as.character(transcript_biotype) 
   annotations <- cbind(annotations, transcript_biotype=transcript_biotype) 
-    
-  annotations <- annotations[annotations$gene_biotype %in%  coding | annotations$transcript_biotype %in% coding,]
+  if (filter_transcript_biotype) {
+      annotations <- annotations[annotations$transcript_biotype %in% coding,]
+  }
+  else { annotations <- annotations[annotations$gene_biotype %in%  coding | annotations$transcript_biotype %in% coding,] }
   cat("retrieve gene name", "\n")
   gene_name <- sapply(annotations$V9, function(x){
     y <- strsplit(x, split = " ")[[1]]
@@ -132,7 +135,7 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
 
   if ( filter_reg_chr ) {
     cat("filtering for genes on regular chromosomes", "\n")  
-    gene_element <- gene_element[grep("^chr|^X|^Y|^MT$|^M$|^\\d|^\\d.\\d", gene_element$seqnames),]
+    gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d.\\d$", gene_element$seqnames),]
     cat(dim(gene_element), "\n")
   }
   anno_list <- list(annotations[order(annotations$gene_name),], gene_element[order(gene_element$gene_name),])
