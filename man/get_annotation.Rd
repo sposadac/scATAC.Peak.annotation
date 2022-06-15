@@ -9,7 +9,11 @@ get_annotation(
   skip = 5,
   gelement = "transcript",
   coding = "protein_coding",
-  filter_reg_chr = T
+  filter_reg_chr = T,
+  TSL = F,
+  filter_,
+  TSLfilt = NULL,
+  filter_transcript_biotype = F
 )
 }
 \arguments{
@@ -17,14 +21,20 @@ get_annotation(
 
 \item{skip}{number of lines to skip in the gtf file until the first gene annotation.}
 
-\item{gelement}{denotes which gene element are filtered. Available options: "transcript", "exon", "intron"}
+\item{gelement}{denotes which gene element are filtered. Available options: "transcript", "exon", "intron" etc.}
 
-\item{coding}{denotes which genes are filtered based on coding information. Available options: "protein_coding",}
+\item{coding}{denotes which genes are filtered based on gene biotype and/or transcript biotype information. Available options: "protein_coding", c("processed_transcript", "protein_coding"), etc.}
 
 \item{filter_reg_chr}{logical. If \code{T}, only genes are included which are on regular chromosomes.}
+
+\item{TSL}{logical. If \code{T}, retrieve transcript support level(TSL) for given transcripts.}
+
+\item{TSLfilt}{number. If not \code{NULL} but a number between 1-5 (or a vector containing this values), gene_element is filtered to only contain TSL \%in\% \code{TSLfilt}.}
+
+\item{filter_transcript_biotype}{logical. If \code{T}, filtering based on transcript biotype.}
 }
 \value{
-list containing two slots of full annotation filtered for \code{gelement} and \code{coding} aswell as annotations collpased per gene into gene loci.
+list containing two slots of full annotation filtered for \code{gelement} and \code{coding} as well as annotations collased per gene into gene loci.
 \item{annotation}{annotation filtered for \code{gelement} and \code{coding}}
 \item{gelement_coding}{annotation filtered for \code{gelement} and \code{coding} and collpased per gene into gene loci}
 }
@@ -33,4 +43,7 @@ function to read in gene annotation from a gtf file and filters these annotation
 }
 \examples{
 anno <- get_annotation(gtf)
+anno_test <- get_annotation(gtf, TSL=T)
+anno_test <- get_annotation(gtf, TSL=T, TSLfilt=1)
+anno_test <- get_annotation(gtf, TSL=T, TSLfilt=c(1,2))
 }

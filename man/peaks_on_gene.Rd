@@ -8,7 +8,8 @@ peaks_on_gene(
   peak_features,
   annotations = NULL,
   gene_element = NULL,
-  split = "[-:]"
+  split = "[-:]",
+  TSSmode = F
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ peaks_on_gene(
 \item{gene_element}{data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large}, \code{prolong_upstream} or similar annotation with second column representing start and third column representing end of a peak.}
 
 \item{split}{character vector(or object which can be coerced to such), used for splitting each element of \code{peak_features} into a vector with 3 elements containing chromosome information, start= and end position of the peak.}
+
+\item{TSSmode}{logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand)}
 }
 \value{
 data.frame with a row for each peak, containing chromosome information, start- and end position as well as the gene on which the peak is falling or "nomatch" if peak is falling on no gene.
@@ -27,5 +30,5 @@ data.frame with a row for each peak, containing chromosome information, start- a
 This function, annotates given peaks with the gene(s) they fall onto. Input is as character vector with chromosome, start- end end position. if the peak falls onto the spanning ranges of two genes, gene names are collapse with "|".
 }
 \examples{
-peak_genes <- peaks_on_gene2(peak_features = rownames(merged_atac_filt), gene_element = anno_prolong)
+peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element = anno_prolong)
 }

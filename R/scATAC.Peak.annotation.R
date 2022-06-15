@@ -9,17 +9,21 @@
 #' @param path_gtf path to gtf file
 #' @param skip number of lines to skip in the gtf file until the first gene annotation.
 #' @param gelement denotes which gene element are filtered. Available options: "transcript", "exon", "intron" etc.
-#' @param coding denotes which genes are filtered based on gene biotype and transcript biotype information. Available options: "protein_coding", c("processed_transcript", "protein_coding"), etc.
+#' @param coding denotes which genes are filtered based on gene biotype and/or transcript biotype information. Available options: "protein_coding", c("processed_transcript", "protein_coding"), etc.
 #' @param filter_reg_chr logical. If \code{T}, only genes are included which are on regular chromosomes.
-#' @param filter_transcript_biotype logical. If \code{T}, filtering based on transcript biotype              
-#' @return list containing two slots of full annotation filtered for \code{gelement} and \code{coding} aswell as annotations collpased per gene into gene loci.
+#' @param TSL logical. If \code{T}, retrieve transcript support level(TSL) for given transcripts.
+#' @param TSLfilt number. If not \code{NULL} but a number between 1-5 (or a vector containing this values), gene_element is filtered to only contain TSL %in% \code{TSLfilt}.
+#' @param filter_transcript_biotype logical. If \code{T}, filtering based on transcript biotype.
+#' @return list containing two slots of full annotation filtered for \code{gelement} and \code{coding} as well as annotations collased per gene into gene loci.
 #'   \item{annotation}{annotation filtered for \code{gelement} and \code{coding}}
 #'   \item{gelement_coding}{annotation filtered for \code{gelement} and \code{coding} and collpased per gene into gene loci}
 #' @examples
 #' anno <- get_annotation(gtf)
 #' anno_test <- get_annotation(gtf, TSL=T)
+#' anno_test <- get_annotation(gtf, TSL=T, TSLfilt=1)
+#' anno_test <- get_annotation(gtf, TSL=T, TSLfilt=c(1,2))
 #' @export
-get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="protein_coding", filter_reg_chr=T, TSL=F ,TSLfilt=1, filter_transcript_biotype=F) {
+get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="protein_coding", filter_reg_chr=T, TSL=F, filter_,TSLfilt=NULL, filter_transcript_biotype=F) {
   start_time2 <- Sys.time()
   cat("read in gtf", "\n")
   annotations <- read.delim(path_gtf, skip=skip, header=F)
@@ -50,12 +54,13 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
       z <- "no_transcript_biotype"
     }
   })
-  transcript_biotype <- as.character(transcript_biotype) 
-  annotations <- cbind(annotations, transcript_biotype=transcript_biotype) 
-  if (filter_transcript_biotype) {
-      annotations <- annotations[annotations$transcript_biotype %in% coding,]
+  transcript_biotype <- as.character(transcript_biotype)
+  annotations <- cbind(annotations, transcript_biotype=transcript_biotype)
+  if (filter_transcript_biotype){
+    annotations <- annotations[annotations$transcript_biotype %in% coding,]
   }
-  else { annotations <- annotations[annotations$gene_biotype %in%  coding | annotations$transcript_biotype %in% coding,] }
+  else{
+    annotations <- annotations[annotations$gene_biotype %in%  coding | annotations$transcript_biotype %in% coding,]}
   cat("retrieve gene name", "\n")
   gene_name <- sapply(annotations$V9, function(x){
     y <- strsplit(x, split = " ")[[1]]
@@ -86,20 +91,21 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
         z <- y[which( y == "transcript_support_level")+1]
       }
       else{
-        z <- "no TSL"
+        z <- "no_TSL"
       }
     })
     annotations <- cbind(annotations, TSL=as.character(get_tsl))
   }
-  
+
   if (TSL) {
     colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype","transcript_biotype", "gene_name", "gene_id", "TSL")
     gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_biotype","TSL")]
-    gene_element <- gene_element[gene_element$TSL == TSLfilt,] 
+    if ( !is.null(TSLfilt)) {
+      gene_element <- gene_element[gene_element$TSL %in% TSLfilt,] }
   }
   else{
-  colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype","transcript_biotype" ,"gene_name", "gene_id")
-  gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_biotype")]
+    colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype","transcript_biotype" ,"gene_name", "gene_id")
+    gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_biotype")]
   }
   TSS_pos <- rep(0, nrow(gene_element))
   TSS_pos[which(gene_element$strand == "+")] <- gene_element$start[which(gene_element$strand == "+")]
@@ -107,35 +113,44 @@ get_annotation <- function(path_gtf, skip=5,gelement="transcript", coding="prote
   TSS_pos <- as.character(TSS_pos)
   TSS_pos2 <- TSS_pos
   gene_element <- cbind(gene_element, TSSrange=TSS_pos, TSSset=TSS_pos2)
-  
+
   non_unique <- names(table(gene_element$gene_name)[table(gene_element$gene_name) != 1 ])
   cat("collapse genes to locus", "\n")
-  
+
   cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
   start_time <- Sys.time()
   future::plan(future::multisession,workers = cores )
-  
-  non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element) {
+
+  non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element, TSL) {
     index <- which(gene_element$gene_name == non_unique[x])
     uni <- gene_element[index[1],]
     tss_pos_col <- as.numeric(gene_element$TSSrange[index])
-    uni[9] <- paste0(min(tss_pos_col),"-", max(tss_pos_col))
-    uni[10] <- paste(gene_element$TSSrange[index], collapse = "|")
+    if (TSL) {
+      tsl_uni <- length(unique(gene_element$TSL[index]))
+      if (tsl_uni != 1) {
+        uni[9] <- paste0(gene_element$TSL[index], collapse = "|")}
+      uni[10] <- paste0(min(tss_pos_col),"-", max(tss_pos_col))
+      uni[11] <- paste(gene_element$TSSrange[index], collapse = "|")
+    }
+    else{
+      uni[9] <- paste0(min(tss_pos_col),"-", max(tss_pos_col))
+      uni[10] <- paste(gene_element$TSSrange[index], collapse = "|")
+    }
     uni[2] <- min(gene_element[index, "start"])
     uni[3] <- max(gene_element[index, "end"])
     return(uni)
-  }, non_unique=non_unique, gene_element=gene_element)
+  }, non_unique=non_unique, gene_element=gene_element, TSL=TSL)
   end_time <- Sys.time()
   cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
-  
+
   non_unique_collapse <- do.call(rbind, non_unique_collapse)
-  
+
   gene_element <- rbind(gene_element[!gene_element$gene_name %in% non_unique,], non_unique_collapse)
 
   if ( filter_reg_chr ) {
-    cat("filtering for genes on regular chromosomes", "\n")  
-    gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d.\\d$", gene_element$seqnames),]
+    cat("filtering for genes on regular chromosomes", "\n")
+    gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d\\d$", gene_element$seqnames),]
     cat(dim(gene_element), "\n")
   }
   anno_list <- list(annotations[order(annotations$gene_name),], gene_element[order(gene_element$gene_name),])
@@ -207,7 +222,7 @@ prolong_upstream <- function(annotations=NULL,gene_element=NULL, prolong=2000) {
 #' @param annotations list. Output from get \code{get_annotation}.
 #' @param gene_element data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large}, \code{prolong_upstream} or similar annotation with second column representing start and third column representing end of a peak.
 #' @param split character vector(or object which can be coerced to such), used for splitting each element of \code{peak_features} into a vector with 3 elements containing chromosome information, start= and end position of the peak.
-#' @param TSSmode logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand)  
+#' @param TSSmode logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand)
 #' @return data.frame with a row for each peak, containing chromosome information, start- and end position as well as the gene on which the peak is falling or "nomatch" if peak is falling on no gene.
 #' @examples
 #' peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element = anno_prolong)
@@ -262,19 +277,19 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       gene_ends <- chr_index[[chr]][["ends"]]
       peak_start <- as.numeric(peak[x,2])
       peak_end <- as.numeric(peak[x,3])
-      
+
       left1 <- gene_starts >= peak_start ### peak overlap left or span the whole gene
       left2 <- gene_starts <= peak_end
       right1 <- gene_ends >= peak_start ### peak overlap right or span the whole gene
       right2 <- gene_ends <= peak_end
       mid1 <- gene_starts <= peak_start ### peak on the gene
       mid2 <- gene_ends >= peak_end
-      
+
       gene_left <- chr_index[[chr]][["gene_names"]][left1 & left2]
       gene_right <- chr_index[[chr]][["gene_names"]][right1 & right2]
       gene_mid <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
-      if (TSSmode) { 
-      if ( length(gene_left) > 0  ) { 
+      if (TSSmode) {
+      if ( length(gene_left) > 0  ) {
         distance <- (gene_starts - peak_start)[left1 & left2]
         gene_left <- paste0(gene_left, chr_index[[chr]][["strand"]][left1 & left2],"TSSoverlap_dist.",distance)
         gene_left <- sub("\\-TSSoverlap_dist.\\d+", "", gene_left)
@@ -422,10 +437,10 @@ give_activity <- function(gene_peaks, peak_matrix) {
 
 #' @title Annotates peaks to closest gene.
 #' @description This function takes the output of \code{peak_on_gene} and annotates peaks which do not fall onto genes to its closest downstream as well as closest upstream genes(if closest gene is not downstream of peak). The distances to closest (downstream) genes of each peak is also calculated and returned.
-#' @param gene_peaks data.frame of peak annotations. Output of \code{peak_on_gene} with peak annotated to the genes they fall onto.
+#' @param peaks data.frame of peak annotations. Output of \code{peak_on_gene} with peak annotated to the genes they fall onto.
 #' @param annotations list. Output from get \code{get_annotation}.
 #' @param gene_element data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large}, \code{prolong_upstream} or similar annotation with second column representing start and third column representing end of a peak.
-#' @param
+#' @param TSSmode logical. If \code{T} specify if \code{peaks_on_gene} function has been run in TSSmode. ### can be optimized to infer this automatic.
 #' @return data.frame with a row for each peak, containing chromosome information, start- and end position and the closest downstream gene and if the closest gene is not downstream of the peak, the closest upstream gene as well. Distances to closest (downstream) gene is included. And given input is the output of \code{peak_on_gene}, if peak is falling on gene, this gene represents closest gene.
 #' @examples
 #' closest_gene <- peaks_closest_gene(peak_genes,anno_prolong)
@@ -453,7 +468,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   }
   cat("separate into peaks with no match and peaks which showed overlap", "\n")
   peaks_annotated <- peaks[peaks[,4] != "nomatch",]
-  if ( TSSmode==T){ 
+  if ( TSSmode==T){
   cat("cbind_peaks_on_gene", "\n")
   peaks_on_gene <- peaks_annotated[grep("TSSoverlap",peaks_annotated[,4], invert = T),]
   peaks_on_gene <- cbind(peaks_on_gene, closest_downstream_gene=rep("",nrow(peaks_on_gene)) ,closest_gene=rep("",nrow(peaks_on_gene)),  Pstart_to_TSS=rep("",nrow(peaks_on_gene)),dist_to_clos_upstream=rep("",nrow(peaks_on_gene)), dist_to_clos_gene=rep("",nrow(peaks_on_gene)))
@@ -461,9 +476,9 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peaks_annotated_TSS <- peaks_annotated[grep("TSSoverlap",peaks_annotated[,4]),]
   peaks_annotated_TSS <- cbind(peaks_annotated_TSS, closest_downstream_gene=as.character(sub("\\_.+", "", peaks_annotated_TSS[,4])),closest_gene=as.character(sub("\\_.+", "", peaks_annotated_TSS[,4])), Pstart_to_TSS=as.character(sapply(peaks_annotated_TSS[,4], function(x){ y <- strsplit(x, "\\.")[[1]][2]})), dist_to_clos_upstream=rep("",nrow(peaks_annotated_TSS)),dist_to_clos_gene=rep("",nrow(peaks_annotated_TSS)))
   }
-  else{ 
+  else{
   peaks_annotated <- cbind(peaks_annotated, closest_downstream_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])}
-  
+
   peaks_not_annotated <- peaks[peaks[,4] == "nomatch",]
   peaks_nam <- rownames(peaks)
   peaks_nam_not_annotated <- rownames(peaks_not_annotated)
@@ -471,7 +486,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   cat("start_looking_for_closest_gene", "\n")
   cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
-  
+
   peak_list <- list()
   computing <- cores*1000
   data_iterat <- nrow(peaks_not_annotated)%/%computing
@@ -483,15 +498,15 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peaks_not_annotated <- c()
   future::plan(future::multisession,workers = cores )
   for (n in 1:length(peak_list)) {
-    
+
     cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
     start_time <- Sys.time()
     peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index,TSSmode) {
-      
+
       chr <- peak[x,1]
       gene_starts <- chr_index[[chr]][["starts"]]
       gene_ends <- chr_index[[chr]][["ends"]]
-      
+
       left <- gene_starts - as.numeric(peak[x,3]) ### upstream +
       right <- as.numeric(peak[x,2]) - gene_ends ### upstream -
       abs_left <- abs(left) ### shortest distance to gene start
@@ -541,12 +556,12 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
         }
         return(c(peak[x,], gene_downstream, gene_general))
       }
-      
+
     },chr_index=gene_chrom_index, peak=peak_list[[n]], TSSmode=TSSmode )
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
-  
+
   peak_list2 <- lapply(peak_list, function(x) {
     y <- do.call(rbind,x)
   })

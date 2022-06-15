@@ -2,7 +2,7 @@
 % Please edit documentation in R/scATAC.Peak.annotation.R
 \name{prolong_upstream}
 \alias{prolong_upstream}
-\title{prolong gene range proximal.}
+\title{prolong gene range upstream of TSS.}
 \usage{
 prolong_upstream(annotations = NULL, gene_element = NULL, prolong = 2000)
 }
@@ -11,13 +11,13 @@ prolong_upstream(annotations = NULL, gene_element = NULL, prolong = 2000)
 
 \item{gene_element}{data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large} or similar annotation with second column representing start and third column representing end of a peak.}
 
-\item{prolong}{number. Indicating range the range of gene elements is prolonged proximal.}
+\item{prolong}{number. Indicating the range gene is prolonged upstream of TSS.}
 }
 \value{
-data.frame of proximal prolonged annotations.
+data.frame of upstream prolonged annotations.
 }
 \description{
-this function prolongs the gene ranges in the annotation proximal by a given number to include the promoter region or other proximal regulatory elements.
+this function prolongs the gene ranges in the annotation upstream of TSS by a given number to include the promoter region or other proximal regulatory elements.
 }
 \examples{
 anno_prolong <- prolong_upstream(gene_element = anno_prolong)
