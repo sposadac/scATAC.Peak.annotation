@@ -254,6 +254,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     gene_chrom_index[[chromosomes[i]]][["ends"]] <- as.numeric(data$end)[index]
     gene_chrom_index[[chromosomes[i]]][["gene_names"]] <-  data$gene_name[index]
     gene_chrom_index[[chromosomes[i]]][["strand"]] <-  data$strand[index]
+    gene_chrom_index[[chromosomes[i]]][["TSSset"]] <-  data$TSSset[index]
   }
   cat("start_overlapping_peaks", "\n")
   cores <- as.numeric(future::availableCores() -2)
@@ -277,39 +278,65 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       gene_ends <- chr_index[[chr]][["ends"]]
       peak_start <- as.numeric(peak[x,2])
       peak_end <- as.numeric(peak[x,3])
-
+      
       left1 <- gene_starts >= peak_start ### peak overlap left or span the whole gene
       left2 <- gene_starts <= peak_end
       right1 <- gene_ends >= peak_start ### peak overlap right or span the whole gene
       right2 <- gene_ends <= peak_end
       mid1 <- gene_starts <= peak_start ### peak on the gene
       mid2 <- gene_ends >= peak_end
-
+      
       gene_left <- chr_index[[chr]][["gene_names"]][left1 & left2]
       gene_right <- chr_index[[chr]][["gene_names"]][right1 & right2]
       gene_mid <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
-      if (TSSmode) {
+      if (TSSmode) { #### ad distance here TSS here
       if ( length(gene_left) > 0  ) {
-        distance <- (gene_starts - peak_start)[left1 & left2]
-        gene_left <- paste0(gene_left, chr_index[[chr]][["strand"]][left1 & left2],"TSSoverlap_dist.",distance)
-        gene_left <- sub("\\-TSSoverlap_dist.\\d+", "", gene_left)
-        }
+        index <- which(left1 & left2)
+        distances <- chr_index[[chr]][["TSSset"]][index]
+        distances <- strsplit(distances, "\\|")
+        distances <- lapply(distances, function(x) {as.numeric(x) - peak_start})
+        distances <- lapply(distances, function(x) {paste(x, collapse = "|")})
+        distances <- unlist(distances)
+        gene_left <- paste0(gene_left, "_",chr_index[[chr]][["strand"]][index],"_","TSS.overlap.dist.Pstart","_",as.character(distances))
+        gene_left <- sub("\\-TSSoverlap_dist.+", "_-_._.", gene_left)
+        } ### do also for right and mid 
       if (length(gene_right) > 0) {
-        distance <- (gene_ends - peak_end)[right1 & right2]
-        gene_right <- paste0(gene_right,chr_index[[chr]][["strand"]][right1 & right2],"TSSoverlap_dist.",distance )
-        gene_right <- sub("\\+TSSoverlap_dist.\\d+", "", gene_right)
+        index <- which(right1 & right2)
+        distances <- chr_index[[chr]][["TSSset"]][index]
+        distances <- strsplit(distances, "\\|")
+        distances <- lapply(distances, function(x) {as.numeric(x) - peak_end})
+        distances <- lapply(distances, function(x) {paste(x, collapse = "|")})
+        distances <- unlist(distances)
+        gene_right <- paste0(gene_right, "_",chr_index[[chr]][["strand"]][index],"_" ,"TSS.overlap.dist.Pend.","_",as.character(distances))
+        gene_right <- sub("\\+TSSoverlap_dist.+", "_+_._.", gene_right)
+      }
+      if (length(gene_mid) > 0) {
+        ### for alternative TSS 
+        index <- which(mid1 & mid2)
+        distances <- chr_index[[chr]][["TSSset"]][index]
+        distances <- strsplit(distances, "\\|")
+        distances1 <- lapply(distances, function(x) {as.numeric(x) - peak_start})
+        distances1 <- lapply(distances1, function(x) {paste(x, collapse = "|")})
+        distances1 <- unlist(distances1)
+        distances2 <- lapply(distances, function(x) {as.numeric(x) - peak_end})
+        distances2 <- lapply(distances2, function(x) {paste(x, collapse = "|")})
+        distances2 <- unlist(distances2)
+        gene_mid1 <- paste0(gene_mid, "_",chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pstart.","_",as.character(distances1))
+        gene_mid2 <- paste0(gene_mid, "_", chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pend.","_",as.character(distances2))
+        gene_mid <- c(gene_mid1, gene_mid2)
       }
       gene_names <- c(gene_left, gene_right, gene_mid)
       if (length(gene_names) > 1) { gene_names <- unique(gene_names)}
       if (length(gene_names) == 1) {
-          return(c(peak[x,],gene_names))
+          return(c(peak[x,],unlist(strsplit(gene_names, split = "_"))))
       }
       else if (length(gene_names) == 0) {
-          return(c(peak[x,], "nomatch"))
+          return(c(peak[x,], "nomatch", ".", ".", "."))
       }
       else {
           to_return <- matrix(rep(peak[x,],length(gene_names)),nrow = length(gene_names), byrow = T)
-          to_return <- cbind(to_return, gene_names)
+          
+          to_return <- cbind(to_return, t(sapply(gene_names, function(x) { y <- strsplit(x, split="_"); y <- unlist(y) })))
           return(to_return)
       }
       }
@@ -335,13 +362,13 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   peak_ongene <- do.call(rbind, peak_list2)
   if (TSSmode==T){
     rownames(peak_ongene) <- paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])
+    colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "gene_names", "strand", "TSSinfo", "distance")
   }
   else{rownames(peak_ongene) <- peak_features}
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(peak_ongene)
 }
-
 
 
 #' @title Aggregate peak counts falling onto the same gene to gene activities
@@ -468,17 +495,20 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   }
   cat("separate into peaks with no match and peaks which showed overlap", "\n")
   peaks_annotated <- peaks[peaks[,4] != "nomatch",]
-  if ( TSSmode==T){
+  if ( TSSmode==T){ 
   cat("cbind_peaks_on_gene", "\n")
-  peaks_on_gene <- peaks_annotated[grep("TSSoverlap",peaks_annotated[,4], invert = T),]
+  peaks_on_gene <- peaks_annotated[grep("TSS",peaks_annotated[,6], invert = T),]
   peaks_on_gene <- cbind(peaks_on_gene, closest_downstream_gene=rep("",nrow(peaks_on_gene)) ,closest_gene=rep("",nrow(peaks_on_gene)),  Pstart_to_TSS=rep("",nrow(peaks_on_gene)),dist_to_clos_upstream=rep("",nrow(peaks_on_gene)), dist_to_clos_gene=rep("",nrow(peaks_on_gene)))
   cat("cbind_peaks_on_TSS", "\n")
-  peaks_annotated_TSS <- peaks_annotated[grep("TSSoverlap",peaks_annotated[,4]),]
-  peaks_annotated_TSS <- cbind(peaks_annotated_TSS, closest_downstream_gene=as.character(sub("\\_.+", "", peaks_annotated_TSS[,4])),closest_gene=as.character(sub("\\_.+", "", peaks_annotated_TSS[,4])), Pstart_to_TSS=as.character(sapply(peaks_annotated_TSS[,4], function(x){ y <- strsplit(x, "\\.")[[1]][2]})), dist_to_clos_upstream=rep("",nrow(peaks_annotated_TSS)),dist_to_clos_gene=rep("",nrow(peaks_annotated_TSS)))
+  peaks_annotated_TSS_ol <- peaks_annotated[grep("TSS.overlap",peaks_annotated[,6]),]
+  peaks_annotated_TSS_ol <- cbind(peaks_annotated_TSS_ol, closest_downstream_gene=peaks_annotated_TSS_ol[,4],closest_gene=peaks_annotated_TSS_ol[,4], Pstart_to_TSS=peaks_annotated_TSS_ol[,7], dist_to_clos_upstream=rep("",nrow(peaks_annotated_TSS_ol)),dist_to_clos_gene=rep("",nrow(peaks_annotated_TSS_ol)))
+  peaks_annotated_TSS_on <- peaks_annotated[grep("TSS.dist",peaks_annotated[,6]),]
+  peaks_annotated_TSS_on <- cbind(peaks_annotated_TSS_on, closest_downstream_gene=peaks_annotated_TSS_on[,4],closest_gene=peaks_annotated_TSS_on[,4], Pstart_to_TSS=peaks_annotated_TSS_on[,7], dist_to_clos_upstream=rep("",nrow(peaks_annotated_TSS_on)),dist_to_clos_gene=rep("",nrow(peaks_annotated_TSS_on)))
+  
   }
-  else{
+  else{ 
   peaks_annotated <- cbind(peaks_annotated, closest_downstream_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])}
-
+  
   peaks_not_annotated <- peaks[peaks[,4] == "nomatch",]
   peaks_nam <- rownames(peaks)
   peaks_nam_not_annotated <- rownames(peaks_not_annotated)
@@ -486,7 +516,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   cat("start_looking_for_closest_gene", "\n")
   cores <- as.numeric(future::availableCores() -2)
   cat("available_cores:", cores, "\n")
-
+  
   peak_list <- list()
   computing <- cores*1000
   data_iterat <- nrow(peaks_not_annotated)%/%computing
@@ -498,15 +528,15 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peaks_not_annotated <- c()
   future::plan(future::multisession,workers = cores )
   for (n in 1:length(peak_list)) {
-
+    
     cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
     start_time <- Sys.time()
     peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index,TSSmode) {
-
+      
       chr <- peak[x,1]
       gene_starts <- chr_index[[chr]][["starts"]]
       gene_ends <- chr_index[[chr]][["ends"]]
-
+      
       left <- gene_starts - as.numeric(peak[x,3]) ### upstream +
       right <- as.numeric(peak[x,2]) - gene_ends ### upstream -
       abs_left <- abs(left) ### shortest distance to gene start
@@ -556,12 +586,12 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
         }
         return(c(peak[x,], gene_downstream, gene_general))
       }
-
+      
     },chr_index=gene_chrom_index, peak=peak_list[[n]], TSSmode=TSSmode )
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
-
+  
   peak_list2 <- lapply(peak_list, function(x) {
     y <- do.call(rbind,x)
   })
@@ -569,9 +599,11 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   rownames(peaks_close) <- peaks_nam_not_annotated
   cat(dim(peaks_close), "\n")
   if (TSSmode) {
-    cat(dim(peaks_annotated_TSS), "\n")
+    cat(dim(peaks_annotated_TSS_ol), "\n")
+    cat(dim(peaks_annotated_TSS_on), "\n")
+    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_TSS_ol)
+    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_TSS_on)
     cat(dim(peaks_on_gene))
-    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_TSS)
     peaks_close <- rbind(peaks_on_gene, peaks_close)
   }
   else{
