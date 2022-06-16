@@ -222,12 +222,12 @@ prolong_upstream <- function(annotations=NULL,gene_element=NULL, prolong=2000) {
 #' @param annotations list. Output from get \code{get_annotation}.
 #' @param gene_element data.frame of gene annotations. Either second slot of \code{get_annotation}, output of \code{too_large}, \code{prolong_upstream} or similar annotation with second column representing start and third column representing end of a peak.
 #' @param split character vector(or object which can be coerced to such), used for splitting each element of \code{peak_features} into a vector with 3 elements containing chromosome information, start= and end position of the peak.
-#' @param TSSmode logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand)
+#' @param TSSmode logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand). Default \code{T}. If \code{F}, only annotates peaks with overlapping genes, required for give_activity
 #' @return data.frame with a row for each peak, containing chromosome information, start- and end position as well as the gene on which the peak is falling or "nomatch" if peak is falling on no gene.
 #' @examples
-#' peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element = anno_prolong)
+#' peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element = anno)
 #' @export
-peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, split="[-:]", TSSmode=F) {
+peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, split="[-:]", TSSmode=T) {
   start_time2 <- Sys.time()
   if ( is.null(annotations) && is.null(gene_element)) {stop("either annotations or gene_element has to be provided")}
   if ( !is.null(annotations) && !is.null(gene_element)) {stop("either annotations OR gene_ement has to be provided")}
@@ -470,9 +470,9 @@ give_activity <- function(gene_peaks, peak_matrix) {
 #' @param TSSmode logical. If \code{T} specify if \code{peaks_on_gene} function has been run in TSSmode. ### can be optimized to infer this automatic.
 #' @return data.frame with a row for each peak, containing chromosome information, start- and end position and the closest downstream gene and if the closest gene is not downstream of the peak, the closest upstream gene as well. Distances to closest (downstream) gene is included. And given input is the output of \code{peak_on_gene}, if peak is falling on gene, this gene represents closest gene.
 #' @examples
-#' closest_gene <- peaks_closest_gene(peak_genes,anno_prolong)
+#' closest_gene <- peaks_closest_gene(peak_genes,anno)
 #' @export
-peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmode=F) {
+peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmode=T) {
   start_time2 <- Sys.time()
   if ( is.null(annotations) && is.null(gene_element)) {stop("either annotations or gene_element has to be provided")}
   if ( !is.null(annotations) && !is.null(gene_element)) {stop("either annotations OR gene_ement has to be provided")}
@@ -611,6 +611,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   cat(dim(peaks_close), "\n")
   peaks_close <- rbind(peaks_annotated, peaks_close)}
   peaks_close <- peaks_close[peaks_nam,]
+  colnames(peaks_close)[4] <- "peak_on_gene"
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(peaks_close)
