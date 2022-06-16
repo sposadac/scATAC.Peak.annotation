@@ -225,7 +225,7 @@ prolong_upstream <- function(annotations=NULL,gene_element=NULL, prolong=2000) {
 #' @param TSSmode logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand). Default \code{T}. If \code{F}, only annotates peaks with overlapping genes, required for give_activity
 #' @return data.frame with a row for each peak, containing chromosome information, start- and end position as well as the gene on which the peak is falling or "nomatch" if peak is falling on no gene.
 #' @examples
-#' peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element = anno)
+#' peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), annotations = anno)
 #' @export
 peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, split="[-:]", TSSmode=T) {
   start_time2 <- Sys.time()
