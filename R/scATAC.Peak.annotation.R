@@ -497,8 +497,8 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peaks_annotated <- peaks[peaks[,4] != "nomatch",]
   if ( TSSmode==T){ 
   cat("cbind_peaks_on_gene", "\n")
-  peaks_on_gene <- peaks_annotated[grep("TSS",peaks_annotated[,6], invert = T),]
-  peaks_on_gene <- cbind(peaks_on_gene, closest_downstream_gene=rep("",nrow(peaks_on_gene)) ,closest_gene=rep("",nrow(peaks_on_gene)),  Pstart_to_TSS=rep("",nrow(peaks_on_gene)),dist_to_clos_upstream=rep("",nrow(peaks_on_gene)), dist_to_clos_gene=rep("",nrow(peaks_on_gene)))
+  peaks_annotated_mid <- peaks_annotated[grep("TSS",peaks_annotated[,6], invert = T),]
+  peaks_annotated_mid <- cbind(peaks_annotated_mid, closest_downstream_gene=rep("",nrow(peaks_annotated_mid)) ,closest_gene=rep("",nrow(peaks_annotated_mid)),  Pstart_to_TSS=rep("",nrow(peaks_annotated_mid)),dist_to_clos_upstream=rep("",nrow(peaks_annotated_mid)), dist_to_clos_gene=rep("",nrow(peaks_annotated_mid)))
   cat("cbind_peaks_on_TSS", "\n")
   peaks_annotated_TSS_ol <- peaks_annotated[grep("TSS.overlap",peaks_annotated[,6]),]
   peaks_annotated_TSS_ol <- cbind(peaks_annotated_TSS_ol, closest_downstream_gene=peaks_annotated_TSS_ol[,4],closest_gene=peaks_annotated_TSS_ol[,4], Pstart_to_TSS=peaks_annotated_TSS_ol[,7], dist_to_clos_upstream=rep("",nrow(peaks_annotated_TSS_ol)),dist_to_clos_gene=rep("",nrow(peaks_annotated_TSS_ol)))
@@ -601,10 +601,11 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   if (TSSmode) {
     cat(dim(peaks_annotated_TSS_ol), "\n")
     cat(dim(peaks_annotated_TSS_on), "\n")
-    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_TSS_ol)
-    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_TSS_on)
-    cat(dim(peaks_on_gene))
+    peaks_on_gene <- rbind(peaks_annotated_TSS_ol, peaks_annotated_TSS_on)
+    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_mid)
+    cat(dim(peaks_on_gene), "\n")
     peaks_close <- rbind(peaks_on_gene, peaks_close)
+    cat(dim(peaks_close), "\n")
   }
   else{
   cat(dim(peaks_annotated), "\n")
