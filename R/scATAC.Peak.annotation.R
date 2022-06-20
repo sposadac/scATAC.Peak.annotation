@@ -480,7 +480,7 @@ give_activity <- function(gene_peaks, peak_matrix) {
 #' @examples
 #' closest_gene <- peaks_closest_gene(peak_genes,anno)
 #' @export
-peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmode=T) {
+peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmode=T, fast=F) {
   start_time2 <- Sys.time()
   if ( is.null(annotations) && is.null(gene_element)) {stop("either annotations or gene_element has to be provided")}
   if ( !is.null(annotations) && !is.null(gene_element)) {stop("either annotations OR gene_ement has to be provided")}
@@ -502,6 +502,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
     gene_chrom_index[[chromosomes[i]]][["strand"]] <- data$strand[index]
   }
   cat("separate into peaks with no match and peaks which showed overlap", "\n")
+  if (fast==F) {
   peaks_annotated <- peaks[peaks[,4] != "nomatch",]
   if ( TSSmode==T){ 
     cat("cbind_peaks_on_gene", "\n")
@@ -516,7 +517,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   }
   else{ 
     peaks_annotated <- cbind(peaks_annotated, closest_downstream_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])}
-  
+  }
   peaks_not_annotated <- peaks[peaks[,4] == "nomatch",]
   peaks_nam <- rownames(peaks)
   peaks_nam_not_annotated <- rownames(peaks_not_annotated)
@@ -603,6 +604,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peaks_close <- do.call(rbind,peak_list)
   rownames(peaks_close) <- peaks_nam_not_annotated
   cat(dim(peaks_close), "\n")
+  if (fast == F) {
   if (TSSmode) {
     cat(dim(peaks_annotated_TSS_ol), "\n")
     cat(dim(peaks_annotated_TSS_on), "\n")
@@ -616,10 +618,13 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
     cat(dim(peaks_annotated), "\n")
     cat(dim(peaks_close), "\n")
     peaks_close <- rbind(peaks_annotated, peaks_close)}
+  }
+  colnames(peaks_close) <- c("seqnames",                "Pstart"                 , "Pend"   , "peak_on_gene",           "strand"        ,          "TSSinfo"                ,"TSSdistance"       ,      "peaks_length"  ,         "closest_downstream_gene" ,"closest_gene" , "dist_clos_downstream"   , "dist_gene.edge_closest")
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(peaks_close)
 }
+
 
 #' @title Get combined overlapping peak set.
 #' @description This function takes the peaks which have been called on different samples, and thus could represent overlapping peaks with different start and or end positions to provide an overlapping peaks set.
