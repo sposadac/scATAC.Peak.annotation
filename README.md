@@ -58,7 +58,7 @@ This function annotates peaks which do not fall onto genes to its closest downst
 ``` r
 closest_gene  <- peaks_closest_gene(peaks=peak_genes, annotations=anno)
 ``` 
-[peaks_closest_gene cartoon for output interpretation -click to see image-](images/Peaks_closest_gene_Cartoon.png`)
+[peaks_closest_gene cartoon for output interpretation -click to see image-](images/Peaks_closest_gene_Cartoon.png)
 
 
 ### Aggregate peak counts falling onto the same gene to gene activities
