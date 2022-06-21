@@ -249,6 +249,8 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   chrom_peaks <- unique(peaks[,1])
   chromosomes <- unique(as.character(data$seqnames))
   if (sum(chromosomes %in% chrom_peaks) == 0) {
+    defaultW <- getOption("warn")	
+    options(warn = -1)  
     if ((sum(is.na(as.numeric(chrom_peaks))) == length(chrom_peaks)) == T) {
       data$seqnames <- paste0("chr", data$seqnames)
       chromosomes <- unique(as.character(data$seqnames))
@@ -256,6 +258,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     else{
       peaks[,1] <- paste0("chr", peaks[,1])
     }
+    options(warn = defaultW)
   }
   cat("build_chrom_index", "\n")
   gene_chrom_index <- list()
@@ -503,6 +506,8 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   chrom_peaks <- unique(peaks[,1])
   chromosomes <- unique(as.character(data$seqnames))
   if (sum(chromosomes %in% chrom_peaks) == 0) {
+    defaultW <- getOption("warn")
+    options(warn = -1)  
     if ((sum(is.na(as.numeric(chrom_peaks))) == length(chrom_peaks)) == T) {
       data$seqnames <- paste0("chr", data$seqnames)
       chromosomes <- unique(as.character(data$seqnames))
@@ -510,6 +515,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
     else{
       peaks[,1] <- paste0("chr", peaks[,1])
     }
+    options(warn = defaultW)
   }
   cat("build_chrom_index", "\n")
   gene_chrom_index <- list()
