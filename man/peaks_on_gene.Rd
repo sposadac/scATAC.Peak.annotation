@@ -9,11 +9,11 @@ peaks_on_gene(
   annotations = NULL,
   gene_element = NULL,
   split = "[-:]",
-  TSSmode = F
+  TSSmode = T
 )
 }
 \arguments{
-\item{peak_features}{character vector, e.g. rownames of peak-cell matrix, with chromosome information as well as start and end position separated e.g. by "-" and ":".}
+\item{peak_features}{character vector, e.g. rownames of peak-cell matrix, with chromosome information as well as start and end position separated e.g. by ":" and "-" chr1:1000-2000.}
 
 \item{annotations}{list. Output from get \code{get_annotation}.}
 
@@ -21,14 +21,14 @@ peaks_on_gene(
 
 \item{split}{character vector(or object which can be coerced to such), used for splitting each element of \code{peak_features} into a vector with 3 elements containing chromosome information, start= and end position of the peak.}
 
-\item{TSSmode}{logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand)}
+\item{TSSmode}{logical. If \code{T},assigns whether annotated gene overlaps a TSS and the range the peak spans before TSS, i.e. distance peak-start to TSS (+strand) or peak-end to TSS (-strand). Default \code{T}. If \code{F}, required for give_activity, only annotates whether peaks overlap genes and if the peak falls onto the spanning ranges of two genes, gene names are collapse with "|".}
 }
 \value{
-data.frame with a row for each peak, containing chromosome information, start- and end position as well as the gene on which the peak is falling or "nomatch" if peak is falling on no gene.
+data.frame with a row for each peak, and columns containing chromosome information, start- and end position, gene on which the peak is falling or "nomatch" if peak is falling on no gene, strand information of gene peak falls onto, information whether peak is overlapping TSS, gene body or gene end and distance to TSS.
 }
 \description{
-This function, annotates given peaks with the gene(s) they fall onto. Input is as character vector with chromosome, start- end end position. if the peak falls onto the spanning ranges of two genes, gene names are collapse with "|".
+This function, annotates given peaks with the gene(s) they fall onto. Input is as character vector with chromosome, start- end end position. It can be further annotated whether peaks are overlapping the TSS or gene body. Furthermore the range the peak spans before the TSS is computed if the peak overlaps TSS or the distance from peak start and peak end is computed if gene falls onto the gene body.
 }
 \examples{
-peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element = anno_prolong)
+peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), annotations = anno)
 }

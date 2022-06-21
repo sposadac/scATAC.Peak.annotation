@@ -7,11 +7,9 @@
 get_annotation(
   path_gtf,
   skip = 5,
-  gelement = "transcript",
   coding = "protein_coding",
   filter_reg_chr = T,
   TSL = F,
-  filter_,
   TSLfilt = NULL,
   filter_transcript_biotype = F
 )
@@ -20,8 +18,6 @@ get_annotation(
 \item{path_gtf}{path to gtf file}
 
 \item{skip}{number of lines to skip in the gtf file until the first gene annotation.}
-
-\item{gelement}{denotes which gene element are filtered. Available options: "transcript", "exon", "intron" etc.}
 
 \item{coding}{denotes which genes are filtered based on gene biotype and/or transcript biotype information. Available options: "protein_coding", c("processed_transcript", "protein_coding"), etc.}
 
@@ -34,12 +30,12 @@ get_annotation(
 \item{filter_transcript_biotype}{logical. If \code{T}, filtering based on transcript biotype.}
 }
 \value{
-list containing two slots of full annotation filtered for \code{gelement} and \code{coding} as well as annotations collased per gene into gene loci.
-\item{annotation}{annotation filtered for \code{gelement} and \code{coding}}
-\item{gelement_coding}{annotation filtered for \code{gelement} and \code{coding} and collpased per gene into gene loci}
+list containing two slots of annotation filtered for transcripts and \code{coding} as well as annotation collased per gene into gene loci.
+\item{annotation}{annotation filtered for transcripts, gene_biotype = \code{coding} and/or transcript_biotype = \code{coding}}
+\item{gelement_coding}{annotation filtered for transcripts, gene_biotype = \code{coding} and/or transcript_biotype = \code{coding} and optional TSL. In addition, transcipts of the same gene are collpased per gene into gene loci}
 }
 \description{
-function to read in gene annotation from a gtf file and filters these annotation based on gene element, coding information and chromosomes.
+function to read in gene annotation from a gtf file and filters these annotation based on gene element, coding information, hromosomes and transript support level.
 }
 \examples{
 anno <- get_annotation(gtf)

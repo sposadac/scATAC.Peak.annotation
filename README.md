@@ -77,10 +77,17 @@ combined.peaks <- give_combined_peaks(atac_layer) ### atac_layer = list object w
 ``` 
 
 
-### Annotate peaks to overlapping peaks
+### Annotate peaks to overlapping peaks.
 This function annotates peaks which have been called on different samples, and thus could represent overlapping peaks with different start and or end positions to a provided overlapping peaks e.g. output of combined.peaks-function. In addition a provided peak-cell count matrix can be aggregated across the common overlapping peak set.
 #### Examples
 ``` r
 overlapped_peaks <- peak_overlap(rownames(merged_atac_filt), combined.peaks=combined.peaks)
 overlapped_peaks <- peak_overlap(rownames(merged_atac_filt), combined.peaks=combined.peaks, do.aggregate=T, peak_matrix=merged_atac_filt) 
-``` 
+```
+
+
+### Merge peak-cell count matrices.
+This function takes the peak-count matrices for different samples, stored in a list with a slot for every sample and merges these matrices.
+``` r
+atac_layer_merged <- merge_samples(atac_layer)
+```  

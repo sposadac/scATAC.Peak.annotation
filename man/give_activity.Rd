@@ -15,7 +15,7 @@ give_activity(gene_peaks, peak_matrix)
 sparse matrix of aggregated activity counts with rows as genes and columns as cells.
 }
 \description{
-This function takes the output of \code{peak_on_gene} and the peak-cell count matrix as input and aggregates peaks falling onto the same genes to a gene-activity count matrix.
+This function takes the output of \code{peaks_on_gene}, run with TSSmode = \code{F} and the peak-cell count matrix as input and aggregates peaks falling onto the same genes to a gene-activity count matrix.
 }
 \examples{
 activity <- give_activity(peak_genes, merged_atac_filt)

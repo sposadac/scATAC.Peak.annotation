@@ -15,7 +15,7 @@ give_combined_peaks(atac_layer, filter_reg_chr = T)
 GenomicRanges object of combined peaks of different samples of atac_layer list.
 }
 \description{
-This function takes the peaks which have been called on different samples, and thus could represent overlapping peaks with different start and or end positions to provide an overlapping peaks set.
+This function takes the peaks which have been called on different samples, and thus could represent overlapping peaks with different start and or end positions to provide an overlapping peak set.
 }
 \examples{
 combined.peaks <- give_combined_peaks(atac_layer)

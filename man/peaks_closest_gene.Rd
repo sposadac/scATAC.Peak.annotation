@@ -4,10 +4,16 @@
 \alias{peaks_closest_gene}
 \title{Annotates peaks to closest gene.}
 \usage{
-peaks_closest_gene(peaks, annotations = NULL, gene_element = NULL, TSSmode = F)
+peaks_closest_gene(
+  peaks,
+  annotations = NULL,
+  gene_element = NULL,
+  TSSmode = T,
+  fast = F
+)
 }
 \arguments{
-\item{peaks}{data.frame of peak annotations. Output of \code{peak_on_gene} with peak annotated to the genes they fall onto.}
+\item{peaks}{data.frame of peak annotations. Output of \code{peaks_on_gene} with peak annotated to the genes they fall onto.}
 
 \item{annotations}{list. Output from get \code{get_annotation}.}
 
@@ -16,11 +22,11 @@ peaks_closest_gene(peaks, annotations = NULL, gene_element = NULL, TSSmode = F)
 \item{TSSmode}{logical. If \code{T} specify if \code{peaks_on_gene} function has been run in TSSmode. ### can be optimized to infer this automatic.}
 }
 \value{
-data.frame with a row for each peak, containing chromosome information, start- and end position and the closest downstream gene and if the closest gene is not downstream of the peak, the closest upstream gene as well. Distances to closest (downstream) gene is included. And given input is the output of \code{peak_on_gene}, if peak is falling on gene, this gene represents closest gene.
+data.frame with a row for each peak, and columns of peaks_on_gene function and in addition ,closest downstream gene, closest gene in general, distance to gene edge of closest downstream gene and closest gene in general.
 }
 \description{
-This function takes the output of \code{peak_on_gene} and annotates peaks which do not fall onto genes to its closest downstream as well as closest upstream genes(if closest gene is not downstream of peak). The distances to closest (downstream) genes of each peak is also calculated and returned.
+This function takes the output of \code{peaks_on_gene} and annotates peaks which do not fall onto genes to its closest downstream as well as closest gene in general(if closest gene is not downstream of the peak). The distances to closest (downstream) gene of each peak is also calculated and returned.
 }
 \examples{
-closest_gene <- peaks_closest_gene(peak_genes,anno_prolong)
+closest_gene <- peaks_closest_gene(peak_genes,anno)
 }

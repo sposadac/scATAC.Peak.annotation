@@ -2,7 +2,7 @@
 % Please edit documentation in R/scATAC.Peak.annotation.R
 \name{too_large}
 \alias{too_large}
-\title{filter out genes spanning a large range.}
+\title{filter out genes spanning a too large range.}
 \usage{
 too_large(annotations = NULL, gene_element = NULL, tolarge = 5e+05)
 }
