@@ -9,7 +9,7 @@ Authors:
            comment = c(ORCID = "0000-0001-7615-2201"))
 Maintainer: Patrice Zeis <patrice.zeis@iob.ch>        
 Description: Several usefull functions to handle single-cell ATAC data. 
-License: "use_mit_license(name='Patrice Zeis, IOB')", "use_gpl3_license(name='Patrice Zeis, IOB')" 
+License: "use_mit_license(name=`Patrice Zeis, IOB`)", "use_gpl3_license(name=`Patrice Zeis, IOB`)" 
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
