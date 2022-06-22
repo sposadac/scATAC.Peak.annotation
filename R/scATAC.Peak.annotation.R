@@ -294,14 +294,14 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       gene_ends <- chr_index[[chr]][["ends"]]
       peak_start <- as.numeric(peak[x,2])
       peak_end <- as.numeric(peak[x,3])
-
+      
       left1 <- gene_starts >= peak_start ### peak overlap left or span the whole gene
       left2 <- gene_starts <= peak_end
       right1 <- gene_ends >= peak_start ### peak overlap right or span the whole gene
       right2 <- gene_ends <= peak_end
       mid1 <- gene_starts <= peak_start ### peak on the gene
       mid2 <- gene_ends >= peak_end
-
+      
       gene_left <- chr_index[[chr]][["gene_names"]][left1 & left2]
       gene_right <- chr_index[[chr]][["gene_names"]][right1 & right2]
       gene_mid <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
@@ -313,8 +313,8 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
           distances <- lapply(distances, function(x) {as.numeric(x) - peak_start})
           distances <- lapply(distances, function(x) {paste(x, collapse = "|")})
           distances <- unlist(distances)
-          gene_left <- paste0(gene_left, "_",chr_index[[chr]][["strand"]][index],"_","TSS.overlap.dist.Pstart","_",as.character(distances))
-          gene_left <- sub("\\-TSSoverlap_dist.+", "_-_._.", gene_left)
+          gene_left <- paste0(gene_left, "_",chr_index[[chr]][["strand"]][index],"_","TSS.overlap.dist.Pstart","_",as.character(distances),"_", ".")
+          gene_left <- sub("\\_-_TSS.overlap.dist.+", "_-_._._.", gene_left)
         } ### do also for right and mid
         if (length(gene_right) > 0) {
           index <- which(right1 & right2)
@@ -323,8 +323,8 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
           distances <- lapply(distances, function(x) { peak_end - as.numeric(x) })
           distances <- lapply(distances, function(x) {paste(x, collapse = "|")})
           distances <- unlist(distances)
-          gene_right <- paste0(gene_right, "_",chr_index[[chr]][["strand"]][index],"_" ,"TSS.overlap.dist.Pend.","_",as.character(distances))
-          gene_right <- sub("\\+TSSoverlap_dist.+", "_+_._.", gene_right)
+          gene_right <- paste0(gene_right, "_",chr_index[[chr]][["strand"]][index],"_" ,"TSS.overlap.dist.Pend.","_",as.character(distances), "_", ".")
+          gene_right <- sub("\\_+_TSS.overlap.dist.+", "_+_._._.", gene_right)
         }
         if (length(gene_mid) > 0) {
           ### for alternative TSS
@@ -332,13 +332,21 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
           distances <- chr_index[[chr]][["TSSset"]][index]
           distances <- strsplit(distances, "\\|")
           distances1 <- lapply(distances, function(x) {as.numeric(x) - peak_start})
+          vorzeichenS <- lapply(distances1, function(x) { as.numeric(x>0) })
           distances1 <- lapply(distances1, function(x) {paste(x, collapse = "|")})
           distances1 <- unlist(distances1)
           distances2 <- lapply(distances, function(x) {as.numeric(x) - peak_end})
+          vorzeichenE <- lapply(distances2, function(x) { as.numeric(x>0) })
+          vorzeichen <- Map(rbind, vorzeichenS, vorzeichenE)
+          vorzeichen <- lapply(vorzeichen, function(x) { apply(x, 2, function(y) { as.numeric(as.numeric(y[1] == y[2]) == 0) } )})
+          vorzeichen <- Map(rbind, vorzeichen, distances)
+          vorzeichen <- lapply(vorzeichen, function(x) { paste(x[2,which(x[1,] == "1")], collapse = "|")})
+          vorzeichen <- unlist(vorzeichen)
+          vorzeichen[which(vorzeichen == "")] <- "." 
           distances2 <- lapply(distances2, function(x) {paste(x, collapse = "|")})
           distances2 <- unlist(distances2)
-          gene_mid1 <- paste0(gene_mid, "_",chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pstart.","_",as.character(distances1))
-          gene_mid2 <- paste0(gene_mid, "_", chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pend.","_",as.character(distances2))
+          gene_mid1 <- paste0(gene_mid, "_",chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pstart.","_",as.character(distances1), "_",vorzeichen)
+          gene_mid2 <- paste0(gene_mid, "_", chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pend.","_",as.character(distances2), "_",vorzeichen)
           gene_mid <- c(gene_mid1, gene_mid2)
         }
         gene_names <- c(gene_left, gene_right, gene_mid)
@@ -347,11 +355,10 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
           return(c(peak[x,],unlist(strsplit(gene_names, split = "_"))))
         }
         else if (length(gene_names) == 0) {
-          return(c(peak[x,], "nomatch", ".", ".", "."))
+          return(c(peak[x,], "nomatch", ".", ".", ".","."))
         }
         else {
           to_return <- matrix(rep(peak[x,],length(gene_names)),nrow = length(gene_names), byrow = T)
-
           to_return <- cbind(to_return, t(sapply(gene_names, function(x) { y <- strsplit(x, split="_"); y <- unlist(y) })))
           return(to_return)
         }
@@ -378,7 +385,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   peak_ongene <- do.call(rbind, peak_list)
   if (TSSmode==T){
     rownames(peak_ongene) <- paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])
-    colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "peak_on_gene", "strand", "TSSinfo", "TSSdistance")
+    colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "peak_on_gene", "strand", "TSSinfo", "TSSdistance", "overlap.alter.TSS")
     peaks_length <- apply(peak_ongene, 1, function(x) {
       length(as.numeric(x[2]):as.numeric(x[3]))
     })
