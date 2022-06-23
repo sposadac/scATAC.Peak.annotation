@@ -652,7 +652,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
     cat(dim(peaks_close), "\n")
     peaks_close <- rbind(peaks_annotated, peaks_close)}
   }
-  colnames(peaks_close) <- c("seqnames",                "Pstart"                 , "Pend"   , "peak_on_gene",           "strand"        ,          "TSSinfo"                ,"TSSdistance"       ,      "peaks_length"  ,         "closest_downstream_gene" ,"closest_gene" , "dist_clos_downstream"   , "dist_gene.edge_closest")
+  colnames(peaks_close) <- c("seqnames",                "Pstart"                 , "Pend"   , "peak_on_gene",           "strand"        ,          "TSSinfo"                ,"TSSdistance"       ,   "overlap.alter.TSS"   ,  "peaks_length"  ,         "closest_downstream_gene" ,"closest_gene" , "dist_clos_downstream"   , "dist_gene.edge_closest")
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(peaks_close)
