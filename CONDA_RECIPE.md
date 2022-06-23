@@ -16,10 +16,11 @@ mamba install -c conda-forge r-base
 mamba install -c conda-forge r-essentials
 ```
 
-Then,
+Then, one can run the conda skeleton command:
 ```
-conda skeleton cran git@github.com:PatZeis/scATAC.Peak.annotation.git
+conda skeleton cran https://github.com/PatZeis/scATAC.Peak.annotation.git
 ```
+Alternatively, one can also use SSH to connect to the remote repository in GitHub.
 
 This creates a directory named `r-scatac.peak.annotation` which contains three files: `meta.yaml`, `build.sh` and `bld.bat`.
 
