@@ -281,9 +281,12 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   plan(multisession,workers = cores )
   peak_list <- list()
   computing <- cores*1000
+  # Handle case: nrow(peaks) < computing
   data_iterat <- nrow(peaks)%/%computing
-  for (n in 1:data_iterat) {
-    peak_list[[n]] <- peaks[(n*computing-(computing-1)):(n*computing),]
+  if (data_iterat > 0){
+    for (n in 1:data_iterat) {
+      peak_list[[n]] <- peaks[(n*computing-(computing-1)):(n*computing),]
+    }
   }
   if ((nrow(peaks) %% computing) != 0) {
     peak_list[[length(peak_list) +1 ]] <- peaks[(length(peak_list)*computing+1):nrow(peaks),]}
