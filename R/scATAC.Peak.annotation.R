@@ -1,3 +1,17 @@
+create_data_chunks <- function(data, chunk_size) {
+  # internal function
+  # data: data.frame
+  # chunk_size: integer
+  data_list <- list()
+  # Handle case: nrow(peaks) < computing
+  data_iterat <- max(1, nrow(data) %/% chunk_size)
+  default_warn <- getOption("warn")
+  options(warn = -1)
+  data_list <- split.data.frame(data, 1:data_iterat)
+  options(warn = default_warn)
+  return(data_list)
+}
+
 #' @importFrom future availableCores plan multisession
 #' @import future.apply
 #' @import Matrix
@@ -250,8 +264,6 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   chrom_peaks <- unique(peaks[,1])
   chromosomes <- unique(as.character(data$seqnames))
   if (sum(chromosomes %in% chrom_peaks) == 0) {
-    defaultW <- getOption("warn")	
-    options(warn = -1)
     # check if chromosomes in annotations are only numeric + X, Y, MT
     aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE)
     if (all(aux)) {
@@ -261,7 +273,6 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     else{
       peaks[,1] <- paste0("chr", peaks[,1])
     }
-    options(warn = defaultW)
     stopifnot(all(chrom_peaks %in% chromosomes))
   }
   cat("build_chrom_index", "\n")
@@ -279,17 +290,9 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   plan(multisession,workers = cores )
-  peak_list <- list()
   computing <- cores*1000
-  # Handle case: nrow(peaks) < computing
-  data_iterat <- nrow(peaks)%/%computing
-  if (data_iterat > 0){
-    for (n in 1:data_iterat) {
-      peak_list[[n]] <- peaks[(n*computing-(computing-1)):(n*computing),]
-    }
-  }
-  if ((nrow(peaks) %% computing) != 0) {
-    peak_list[[length(peak_list) +1 ]] <- peaks[(length(peak_list)*computing+1):nrow(peaks),]}
+  peak_list <- create_data_chunks(peaks, computing)
+
   peaks <- c()
   cat("processing_", min(nrow(peak_list[[1]]), computing), "_rows_at_a_time", "\n", sep="")
   n_processing <- 0
@@ -431,29 +434,19 @@ give_activity <- function(gene_peaks, peak_matrix) {
   cat("split for parallelization", "\n")
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
-  
-  peak_list <- list()
-  activity_list <- list()
+
   computing <- cores*100
-  data_iterat <- nrow(activity_overlap)%/%computing
-  
-  for (n in 1:data_iterat) {
-    peak_list[[n]] <- gene_peaks_overlap[(n*computing-(computing-1)):(n*computing),]
-  }
-  if ((nrow(gene_peaks_overlap) %% computing) != 0 ) {
-    peak_list[[length(peak_list) +1 ]] <- gene_peaks_overlap[(length(peak_list)*computing+1):nrow(gene_peaks_overlap),]}
-  
-  for (n in 1:data_iterat) {
-    activity_list[[n]] <- activity_overlap[(n*computing-(computing-1)):(n*computing),]
-  }
-  if ((nrow(activity_overlap) %% computing) != 0 ) {
-    activity_list[[length(activity_list) +1 ]] <- activity_overlap[(length(activity_list)*computing+1):nrow(activity_overlap),]}
+  peak_list <- create_data_chunks(gene_peaks_overlap, computing)
+  activity_list <- create_data_chunks(activity_overlap, computing)
+
   plan(multisession,workers = cores )
   activity_overlap <- c()
   gene_peaks_overlap <- c()
+  n_processing <- 0
   for (n in 1:length(peak_list)) {
     cat("assign_counts_of_peaks_overlapping_genes_to_individual_genes", "\n")
-    cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
+    n_processing <- n_processing +  nrow(activity_list[[n]])
+    cat("processing_rows ", n*computing-(computing-1), " to ", min(n_processing, n*computing), " ")
     start_time <- Sys.time()
     
     peak_list[[n]] <- future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, activity, peaks) {
@@ -569,19 +562,16 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
 
-  peak_list <- list()
   computing <- cores*1000
-  data_iterat <- nrow(peaks_not_annotated)%/%computing
-  for (n in 1:data_iterat) {
-    peak_list[[n]] <- peaks_not_annotated[(n*computing-(computing-1)):(n*computing),]
-  }
-  if ((nrow(peaks_not_annotated) %% computing) != 0 ) {
-    peak_list[[length(peak_list) +1 ]] <- peaks_not_annotated[(length(peak_list)*computing+1):nrow(peaks_not_annotated),]}
+  peak_list <- create_data_chunks(peaks_not_annotated, computing)
+
   peaks_not_annotated <- c()
   plan(multisession,workers = cores )
+  n_processing <- 0
   for (n in 1:length(peak_list)) {
 
-    cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
+    n_processing <- n_processing +  nrow(peak_list[[n]])
+    cat("processing_rows " , n*computing-(computing-1), " to ", min(n_processing, n*computing), " ")
     start_time <- Sys.time()
     peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index,TSSmode) {
 
@@ -745,18 +735,14 @@ peak_overlap <- function(peak_features, combined.peaks, do.aggregate=F,peak_matr
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   computing <- cores*1000
-  data_iterat <- nrow(peaks)%/%computing
-  peak_list <- list()
+  peak_list <- create_data_chunks(peaks, computing)
 
-  for (n in 1:data_iterat) {
-    peak_list[[n]] <- peaks[(n*computing-(computing-1)):(n*computing),]
-  }
-  if ((nrow(peaks) %% computing) != 0 ) {
-    peak_list[[length(peak_list) +1 ]] <- peaks[(length(peak_list)*computing+1):nrow(peaks),]}
   plan(multisession,workers = cores )
+  n_processing <- 0
   for (n in 1:length(peak_list)) {
     cat("get overlapping peaks", "\n")
-    cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
+    n_processing <- n_processing +  nrow(peak_list[[n]])
+    cat("processing_rows " , n*computing-(computing-1), " to ", min(n_processing, n*computing), " ")
     start_time <- Sys.time()
     peak_list[[n]] <- future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peaks, chr_index) {
       chr <- peaks[x,1]
