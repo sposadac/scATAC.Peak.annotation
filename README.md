@@ -40,7 +40,7 @@ anno_small  <- too_large(anno)
 ### prolong gene range upstream of TSS.
 This function prolongs the gene ranges in the annotation upstream of TSS by a given number to include the promoter region or other proximal regulatory elements.
 ``` r
-anno_prolong <- prolong_upstream(gene_element = anno_prolong)
+anno_prolong <- prolong_upstream(gene_element = anno_small)
 ```
 
 
@@ -65,7 +65,7 @@ closest_gene  <- peaks_closest_gene(peaks=peak_genes, annotations=anno)
 This function takes the output of peak_on_gene function run with TSSmode=F, and a peak-cell matrix.mtx (with rownames derived from features.tsv and colnames derived from barcodes.tsv) as input and aggregates peaks falling onto the same genes to a gene-activity count matrix.
 
 ``` r
-peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), annotations = anno, TSSmode=F)
+peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), gene_element=anno_prolong, TSSmode=F)
 activity <- give_activity(peak_genes, merged_atac_filt)
 ``` 
 
