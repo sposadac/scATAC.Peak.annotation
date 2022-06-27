@@ -291,9 +291,11 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   if ((nrow(peaks) %% computing) != 0) {
     peak_list[[length(peak_list) +1 ]] <- peaks[(length(peak_list)*computing+1):nrow(peaks),]}
   peaks <- c()
-  cat("processing_",computing,"_rows_at_a_time", "\n")
+  cat("processing_", min(nrow(peak_list[[1]]), computing), "_rows_at_a_time", "\n", sep="")
+  n_processing <- 0
   for (n in 1:length(peak_list)) {
-    cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
+    n_processing <- n_processing +  nrow(peak_list[[n]])
+    cat("processing_rows " , n*computing-(computing-1), " to ", min(n_processing, n*computing), " ")
     start_time <- Sys.time()
     peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index) {
       chr <- peak[x,1]
