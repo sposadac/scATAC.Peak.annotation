@@ -97,14 +97,15 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
     annotations <- cbind(annotations, TSL=as.character(get_tsl))
   }
 
+  colnames <- c("seqnames", "genome_build", "gene_region", "start", "end", "score", "strand", "frame", "gene_info", "gene_biotype", "transcript_biotype", "gene_name", "gene_id")
   if (TSL) {
-    colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype","transcript_biotype", "gene_name", "gene_id", "TSL")
+    colnames(annotations) <- c(colnames, "TSL")
     gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_biotype","TSL")]
     if ( !is.null(TSLfilt)) {
       gene_element <- gene_element[gene_element$TSL %in% TSLfilt,] }
   }
   else{
-    colnames(annotations) <- c("seqnames", "genome_build", "gene_region", "start", "end", "dot", "strand", "dot", "gene_info", "gene_biotype","transcript_biotype" ,"gene_name", "gene_id")
+    colnames(annotations) <- colnames
     gene_element <- annotations[, c("seqnames", "start", "end", "strand", "gene_id", "gene_name", "gene_biotype", "transcript_biotype")]
   }
   TSS_pos <- rep(0, nrow(gene_element))
@@ -250,8 +251,10 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   chromosomes <- unique(as.character(data$seqnames))
   if (sum(chromosomes %in% chrom_peaks) == 0) {
     defaultW <- getOption("warn")	
-    options(warn = -1)  
-    if ((sum(is.na(as.numeric(chrom_peaks))) == length(chrom_peaks)) == T) {
+    options(warn = -1)
+    # check if chromosomes in annotations are only numeric + X, Y, MT
+    aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE)
+    if (all(aux)) {
       data$seqnames <- paste0("chr", data$seqnames)
       chromosomes <- unique(as.character(data$seqnames))
     }
@@ -259,6 +262,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       peaks[,1] <- paste0("chr", peaks[,1])
     }
     options(warn = defaultW)
+    stopifnot(all(chrom_peaks %in% chromosomes))
   }
   cat("build_chrom_index", "\n")
   gene_chrom_index <- list()
