@@ -417,21 +417,23 @@ give_activity <- function(gene_peaks, peak_matrix) {
   index_overlap <- which(grepl("\\|", gene_peaks[,4]))
   activity_overlap <- peak_matrix[index_overlap,]
   gene_peaks_overlap <- gene_peaks[index_overlap,]
+  gene_peaks <- gene_peaks[-index_overlap,]
+  peak_matrix <- peak_matrix[-index_overlap,]
   cat("split for parallelization", "\n")
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
-
+  
   peak_list <- list()
   activity_list <- list()
   computing <- cores*100
   data_iterat <- nrow(activity_overlap)%/%computing
-
+  
   for (n in 1:data_iterat) {
     peak_list[[n]] <- gene_peaks_overlap[(n*computing-(computing-1)):(n*computing),]
   }
   if ((nrow(gene_peaks_overlap) %% computing) != 0 ) {
     peak_list[[length(peak_list) +1 ]] <- gene_peaks_overlap[(length(peak_list)*computing+1):nrow(gene_peaks_overlap),]}
-
+  
   for (n in 1:data_iterat) {
     activity_list[[n]] <- activity_overlap[(n*computing-(computing-1)):(n*computing),]
   }
@@ -444,44 +446,42 @@ give_activity <- function(gene_peaks, peak_matrix) {
     cat("assign_counts_of_peaks_overlapping_genes_to_individual_genes", "\n")
     cat("processing_rows " , n*computing-(computing-1), " to ", n*computing, " ")
     start_time <- Sys.time()
-
+    
     peak_list[[n]] <- future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, activity, peaks) {
       gene_name <- peaks[x, 4]
       gene_name <- as.character(unlist(strsplit(gene_name, split="\\|")))
       mat_activity <- matrix(rep(activity[x,], length(gene_name)), nrow = length(gene_name), byrow = T)
       mat_activity <- list(mat=mat_activity, gene_name=gene_name )
     }, activity=as.matrix(activity_list[[n]]), peaks=as.matrix(peak_list[[n]]))
+    
+    peak_list_mat <-  lapply(peak_list[[n]], function(x) {
+        return(x[["mat"]])
+      })
+   
+    peak_list[[n]] <- lapply(peak_list[[n]], function(x) {
+        return(x[["gene_name"]])
+    })
+    peak_list_mat <- do.call(rbind, peak_list_mat)
+    peak_list_mat <- Matrix(as.matrix(peak_list_mat), sparse = T)
+    peak_list[[n]] <- Reduce(append, peak_list[[n]])  
+    peak_list[[n]] <- list(mat = peak_list_mat, gene_name=peak_list[[n]])
+    peak_list_mat <- c()
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
   cat("append genes and rbind tables", "\n")
   activity_overlap_comb <- lapply(peak_list, function(x) {
-    y <- lapply(x, function(z) {
-      return(z[["mat"]])
-    })
-    y
+      return(x[["mat"]])
   })
-  activity_overlap_comb <- lapply(activity_overlap_comb, function(x) {
-    y <- do.call(rbind, x)
-    y
+  peak_list <- lapply(peak_list, function(x) {
+      return(x[["gene_name"]])
   })
+    
   activity_overlap_comb <- do.call(rbind, activity_overlap_comb)
-
-  activity_overlap_comb_genes <- lapply(peak_list, function(x) {
-    y <- lapply(x, function(z) {
-      return(z[["gene_name"]])
-    })
-    y
-  })
-  activity_overlap_comb_genes <- lapply(activity_overlap_comb_genes, function(x) {
-    y <- Reduce(append, x)
-    y
-  })
-  activity_overlap_comb_genes <- Reduce(append, activity_overlap_comb_genes)
-
-  genes_overlap <- c(as.character(gene_peaks[-index_overlap,4]), activity_overlap_comb_genes)
-  activity_overlap_comb <- Matrix(as.matrix(activity_overlap_comb), sparse = T)
-  activity_gene_add <- rbind(peak_matrix[-index_overlap,],activity_overlap_comb)
+  peak_list <- Reduce(append, peak_list)
+  
+  genes_overlap <- c(as.character(gene_peaks[,4]), peak_list )
+  activity_gene_add <- rbind(peak_matrix,activity_overlap_comb)
   rownames(activity_gene_add) <- genes_overlap
   cat("aggregate counts for peaks on the same gene", "\n")
   activity_gene_add_sum <- aggregate.Matrix(activity_gene_add, as.factor(rownames(activity_gene_add)), fun = "sum")
@@ -489,6 +489,7 @@ give_activity <- function(gene_peaks, peak_matrix) {
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(activity_gene_add_sum)
 }
+
 
 #' @title Annotates peaks to closest gene.
 #' @description This function takes the output of \code{peaks_on_gene} and annotates peaks which do not fall onto genes to its closest downstream as well as closest gene in general(if closest gene is not downstream of the peak). The distances to closest (downstream) gene of each peak is also calculated and returned.
