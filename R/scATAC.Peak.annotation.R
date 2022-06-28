@@ -542,12 +542,12 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peaks_annotated <- peaks[peaks[,4] != "nomatch",]
   if ( TSSmode==T){
     cat("cbind_peaks_on_gene", "\n")
-    peaks_annotated_end <- peaks_annotated[grep("TSS",peaks_annotated[,6], invert = T),]
+    peaks_annotated_end <- peaks_annotated[grep("TSS",peaks_annotated[,6], invert = T), , drop=FALSE]
     peaks_annotated_end <- cbind(peaks_annotated_end, closest_downstream_gene=rep("",nrow(peaks_annotated_end)) ,closest_gene=rep("",nrow(peaks_annotated_end)),dist_clos_downstream=rep("",nrow(peaks_annotated_end)), dist_gene.edge_closest=rep("",nrow(peaks_annotated_end)))
     cat("cbind_peaks_on_TSS", "\n")
-    peaks_annotated_TSS_ol <- peaks_annotated[grep("TSS.overlap",peaks_annotated[,6]),]
+    peaks_annotated_TSS_ol <- peaks_annotated[grep("TSS.overlap",peaks_annotated[,6]), , drop=FALSE]
     peaks_annotated_TSS_ol <- cbind(peaks_annotated_TSS_ol, closest_downstream_gene=peaks_annotated_TSS_ol[,4],closest_gene=peaks_annotated_TSS_ol[,4], dist_clos_downstream=rep("",nrow(peaks_annotated_TSS_ol)),dist_gene.edge_closest=rep("",nrow(peaks_annotated_TSS_ol)))
-    peaks_annotated_TSS_on <- peaks_annotated[grep("TSS.dist",peaks_annotated[,6]),]
+    peaks_annotated_TSS_on <- peaks_annotated[grep("TSS.dist",peaks_annotated[,6]), , drop=FALSE]
     peaks_annotated_TSS_on <- cbind(peaks_annotated_TSS_on, closest_downstream_gene=peaks_annotated_TSS_on[,4],closest_gene=peaks_annotated_TSS_on[,4], dist_clos_downstream=rep("",nrow(peaks_annotated_TSS_on)),dist_gene.edge_closest=rep("",nrow(peaks_annotated_TSS_on)))
 
   }
