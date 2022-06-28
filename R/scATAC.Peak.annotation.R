@@ -20,21 +20,24 @@ create_data_chunks <- function(data, chunk_size) {
 }
 
 stardardize_chr_names <- function(peaks, annotation) {
-  # internal function
+  # internal function: prefix chromosome names with "chr" (UCSC convention)
   # peaks: matrix
   # annotation: data.frame
   chrom_peaks <- unique(peaks[, 1])
   chromosomes <- unique(as.character(annotation$seqnames))
   if (sum(chromosomes %in% chrom_peaks) == 0) {
     # check if chromosomes in annotations are only numeric + X, Y, MT
-    aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE)
+    aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE) 
     if (all(aux)) {
       annotation$seqnames <- paste0("chr", annotation$seqnames)
-      chromosomes <- unique(as.character(annotation$seqnames))
-    }
-    else{
+    } else {
       peaks[, 1] <- paste0("chr", peaks[, 1])
     }
+    # NOTE: Ensembl uses "MT" for mitochondrial genes, use "chrM" instead
+    annotation$seqnames <- sub("chrMT", "chrM", annotation$seqnames)
+    peaks[, 1] <- sub("chrMT", "chrM", peaks[, 1])
+    chromosomes <- unique(as.character(annotation$seqnames))
+    chrom_peaks <- unique(peaks[, 1])
     if (!all(chrom_peaks %in% chromosomes))
       stop("not all peak chromosome names are found in 'annotation'")
   }
