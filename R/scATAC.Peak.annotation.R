@@ -3,7 +3,7 @@ create_data_chunks <- function(data, chunk_size) {
   # data: data.frame
   # chunk_size: integer
   data_list <- list()
-  # Handle case: nrow(peaks) < computing
+  # Handle case: nrow(peaks) < chunk_size
   data_iterat <- max(1, nrow(data) %/% chunk_size)
   default_warn <- getOption("warn")
   options(warn = -1)
