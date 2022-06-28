@@ -1,6 +1,6 @@
 create_data_chunks <- function(data, chunk_size) {
   # internal function
-  # data: data.frame
+  # data: matrix
   # chunk_size: integer
   data_list <- list()
   # Handle case: nrow(peaks) < chunk_size
@@ -10,6 +10,29 @@ create_data_chunks <- function(data, chunk_size) {
   data_list <- split.data.frame(data, 1:data_iterat)
   options(warn = default_warn)
   return(data_list)
+}
+
+stardardize_chr_names <- function(peaks, annotation) {
+  # internal function
+  # peaks: matrix
+  # annotation: data.frame
+  chrom_peaks <- unique(peaks[, 1])
+  chromosomes <- unique(as.character(annotation$seqnames))
+  if (sum(chromosomes %in% chrom_peaks) == 0) {
+    # check if chromosomes in annotations are only numeric + X, Y, MT
+    aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE)
+    if (all(aux)) {
+      annotation$seqnames <- paste0("chr", annotation$seqnames)
+      chromosomes <- unique(as.character(annotation$seqnames))
+    }
+    else{
+      peaks[, 1] <- paste0("chr", peaks[, 1])
+    }
+    if (!all(chrom_peaks %in% chromosomes))
+      stop("not all peak chromosome names are found in 'annotation'")
+  }
+  return(list("peaks"=peaks, "annotation"=annotation,
+              "chromosomes"=chromosomes))
 }
 
 #' @importFrom future availableCores plan multisession
@@ -261,20 +284,11 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   if( class(as.numeric(peaks[[1]][2])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
   if( class(as.numeric(peaks[[1]][3])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
   peaks <- do.call(rbind, peaks)
-  chrom_peaks <- unique(peaks[,1])
-  chromosomes <- unique(as.character(data$seqnames))
-  if (sum(chromosomes %in% chrom_peaks) == 0) {
-    # check if chromosomes in annotations are only numeric + X, Y, MT
-    aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE)
-    if (all(aux)) {
-      data$seqnames <- paste0("chr", data$seqnames)
-      chromosomes <- unique(as.character(data$seqnames))
-    }
-    else{
-      peaks[,1] <- paste0("chr", peaks[,1])
-    }
-    stopifnot(all(chrom_peaks %in% chromosomes))
-  }
+  ret <- stardardize_chr_names(peaks, data)
+  peaks <- ret$peaks
+  data <- ret$annotation
+  chromosomes <- ret$chromosomes
+  ret <- list()
   cat("build_chrom_index", "\n")
   gene_chrom_index <- list()
   for ( i in 1:length(chromosomes)){
@@ -513,20 +527,11 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   else{
     data <- gene_element
   }
-  chrom_peaks <- unique(peaks[,1])
-  chromosomes <- unique(as.character(data$seqnames))
-  if (sum(chromosomes %in% chrom_peaks) == 0) {
-    defaultW <- getOption("warn")
-    options(warn = -1)  
-    if ((sum(is.na(as.numeric(chrom_peaks))) == length(chrom_peaks)) == T) {
-      data$seqnames <- paste0("chr", data$seqnames)
-      chromosomes <- unique(as.character(data$seqnames))
-    }
-    else{
-      peaks[,1] <- paste0("chr", peaks[,1])
-    }
-    options(warn = defaultW)
-  }
+  ret <- stardardize_chr_names(peaks, data)
+  peaks <- ret$peaks
+  data <- ret$annotation
+  chromosomes <- ret$chromosomes
+  ret <- list()
   cat("build_chrom_index", "\n")
   gene_chrom_index <- list()
   for ( i in 1:length(chromosomes)){
