@@ -3,12 +3,19 @@ create_data_chunks <- function(data, chunk_size) {
   # data: matrix
   # chunk_size: integer
   data_list <- list()
-  # Handle case: nrow(peaks) < chunk_size
-  data_iterat <- max(1, nrow(data) %/% chunk_size)
-  default_warn <- getOption("warn")
-  options(warn = -1)
-  data_list <- split.data.frame(data, 1:data_iterat)
-  options(warn = default_warn)
+  # Handle case: nrow(data) < chunk_size
+  data_iterat <- nrow(data) %/% chunk_size
+  if (data_iterat > 0) {
+    for (n in 1:data_iterat) {
+      start <- n * chunk_size - (chunk_size - 1)
+      end <- min(n * chunk_size, nrow(data))
+      data_list[[n]] <- data[start:end, ]
+    }
+  }
+  if ((nrow(data) %% chunk_size) != 0) {
+    start <- length(data_list) * chunk_size + 1
+    data_list[[length(data_list) + 1]] <- data[start:nrow(data), ]
+  }
   return(data_list)
 }
 
