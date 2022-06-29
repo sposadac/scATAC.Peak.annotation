@@ -33,7 +33,7 @@ stardardize_chr_names <- function(peaks, annotation) {
     } else {
       peaks[, 1] <- paste0("chr", peaks[, 1])
     }
-    # NOTE: Ensembl uses "MT" for mitochondrial genes, use "chrM" instead
+    # NOTE: Ensembl uses "MT" for the mitochondrial chromosome, use Refseq's "chrM"
     annotation$seqnames <- sub("chrMT", "chrM", annotation$seqnames)
     peaks[, 1] <- sub("chrMT", "chrM", peaks[, 1])
     chromosomes <- unique(as.character(annotation$seqnames))
