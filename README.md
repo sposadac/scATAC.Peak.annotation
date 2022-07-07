@@ -49,8 +49,7 @@ This function annotates given peaks with the gene(s) they fall onto. Input is as
 ``` r
 peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), annotations = anno) ### peak features e.g. rowname of cellranger-atac output file features.tsv with chromosome:Peak.start-Peak.end
 ``` 
-[peaks_on_gene cartoon for output interpretation -click here to see image-](images/peaks_on_gene_Cartoon.png)
-
+<h1 align="center"><img width="800px" src="images/peaks_on_gene_Cartoon_new.png"/></h1>
 
 
 ### Annotates peaks to closest gene.
@@ -58,8 +57,7 @@ This function annotates peaks which do not fall onto genes to its closest downst
 ``` r
 closest_gene  <- peaks_closest_gene(peaks=peak_genes, annotations=anno)
 ``` 
-[peaks_closest_gene cartoon for output interpretation -click here to see image-](images/peaks_closest_gene_Cartoon.png)
-
+<h1 align="center"><img width="800px" src="images/peaks_closest_gene_Cartoon.png"/></h1>
 
 ### Aggregate peak counts falling onto the same gene to gene activities
 This function takes the output of peak_on_gene function run with TSSmode=F, and a peak-cell matrix.mtx (with rownames derived from features.tsv and colnames derived from barcodes.tsv) as input and aggregates peaks falling onto the same genes to a gene-activity count matrix.
