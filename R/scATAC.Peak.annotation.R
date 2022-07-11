@@ -709,7 +709,7 @@ give_combined_peaks <- function(atac_layer, filter_reg_chr=T) {
   atac_layer_peaks_gr <- lapply(atac_layer_peaks_gr, function(x){
     y <- makeGRangesFromDataFrame(x)
   })
-  cat("reduce peaks of different samples to comman overapping peak set")
+  cat("reduce peaks of different samples to comman overapping peak set", "\n")
   to_reduce <- paste0("c(", paste0("atac_layer_peaks_gr", "[[", 1:length(atac_layer_peaks_gr), "]]", collapse = "," ), ")")
   combined.peaks <- reduce(x = eval(parse(text = to_reduce)))
   return(combined.peaks)
@@ -722,18 +722,21 @@ give_combined_peaks <- function(atac_layer, filter_reg_chr=T) {
 #' @param combined.peaks GenomicRanges object of combined peaks. Output of \code{give_combined_peaks} function.
 #' @param do.aggregate logical. If \code{T}, aggregate provided peak-cell count matrix across the common overlapping peak set.
 #' @param peak_matrix Peak-cell count matrix. With rows representing peaks and columns representing cells.
-#' @return If \code{do.aggregate} = \code{F}. data.frame with a row for each peak, containing chromosome information, start- and end position and annotated peak with combined peak set. If \code{do.aggregate} = \code{T} and \code{peak_matrix} provided:
+#' @param insert_run1 output of function with do.aggregate = \code{F}, i.e. matrix with a row for each peak, containing chromosome information, start- and end position and annotated peak with combined peak set
+#' @return If \code{do.aggregate} = \code{F}: matrix with a row for each peak, containing chromosome information, start- and end position and annotated peak with combined peak set. If \code{do.aggregate} = \code{T} and \code{peak_matrix} provided:
 #'   \item{agg.comb.peaks}{aggregated peak-cell count matrix across the common overlapping peak set.}
 #'   \item{peaks.combined}{data.frame with a row for each peak, containing chromosome information, start- and end position and annotated peak with combined peak set.}
 #' @examples
-#' overlapped_peaks <- peak_overlap(rownames(merged_atac_filt), combined.peaks=combined.peaks)
+#' overlapped_peaks <- peak_overlap(peak_features=rownames(merged_atac_filt), combined.peaks=combined.peaks)
+#' overlapped_peaks <- peak_overlap(do.aggregate=T, peak_matrix=merged_atac_filt,insert_run1 = overlapped_peaks)
 #' @export
 
-peak_overlap <- function(peak_features, combined.peaks, do.aggregate=F,peak_matrix=NULL ) {
+peak_overlap <- function(peak_features=NULL, combined.peaks=NULL, do.aggregate=F,peak_matrix=NULL, insert_run1=NULL ) {
   if (do.aggregate==T) {
     if(is.null(peak_matrix)) { stop("if do.aggregate=T, peak_matrix has to be provided")}
   }
-
+  if (is.null(insert_run1)) {
+  if(is.null(peak_features ) || is.null(combined.peaks)) {stop("both 'peak_features' and 'combined.peaks' need to be provided")}
   start_time2 <- Sys.time()
   chromosomes <- unique(as.character(combined.peaks@seqnames))
   gene_chrom_index <- list()
@@ -747,15 +750,16 @@ peak_overlap <- function(peak_features, combined.peaks, do.aggregate=F,peak_matr
   peaks <- lapply(peak_features, function(x) {
     strsplit(x, split = "[-:]")[[1]]
   })
+  peak_features <- c()
   if( class(as.numeric(peaks[[1]][2])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
   if( class(as.numeric(peaks[[1]][3])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
   peaks <- do.call(rbind, peaks)
-
+  
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   computing <- cores*1000
   peak_list <- create_data_chunks(peaks, computing)
-
+  peaks <- c()
   plan(multisession,workers = cores )
   n_processing <- 0
   for (n in 1:length(peak_list)) {
@@ -769,33 +773,39 @@ peak_overlap <- function(peak_features, combined.peaks, do.aggregate=F,peak_matr
       peak_end <- as.numeric(peaks[x,3])
       starts <- chr_index[[chr]][["starts"]]
       ends <- chr_index[[chr]][["ends"]]
-
+      
       mid1 <- starts <= peak_start ### peak on the gene
       mid2 <- ends >= peak_end
       gene_names <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
       return(c(chr, peak_start, peak_end, gene_names))
     },peaks=peak_list[[n]],chr_index=gene_chrom_index)
+    peak_list[[n]] <- do.call(rbind, peak_list[[n]])
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
-  peak_list2 <- lapply(peak_list, function(x) { y <- do.call(rbind, x) })
-  peaks_combined <- do.call(rbind, peak_list2)
-  rownames(peaks_combined) <- peak_features
+  peaks_combined <- do.call(rbind, peak_list)
+  peak_list <- c()
+  rownames(peaks_combined) <- paste0(peaks_combined[,1],":", peaks_combined[,2], "-", peaks_combined[,3])
   colnames(peaks_combined) <- c("seqnames", "start", "end", "combined_peaks")
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
-  if (do.aggregate==T) {
-    if (class(peak_matrix) != "dgTMatrix" ) {
-      peak_matrix <- Matrix(as.matrix(peak_matrix),  sparse = T)
-    }
-    combined_peaks_matrix <- aggregate.Matrix(peak_matrix, as.factor(peaks_combined[,4]), fun = "sum")
-    peaks_list3 <- list(agg.comb.peaks=combined_peaks_matrix, peaks.combined=peaks_combined)
-    return(peaks_list3)
   }
   else{
-  return(peaks_combined)}
+    peaks_combined <- insert_run1
+  }
+  if (do.aggregate==T) {
+    if (class(peak_matrix) != "dgCMatrix" ) {
+      stop("please provide 'peak_matrix' as sparce matrix in dgCMatrix format")
+    }
+    cat("aggregate overlapping peaks", "\n")
+    combined_peaks_matrix <- aggregate.Matrix(peak_matrix, as.factor(peaks_combined[,4]), fun = "sum")
+    cat("done aggregate overlapping peaks", "\n")
+    combined_list <- list(agg.comb.peaks=combined_peaks_matrix, peaks.combined=peaks_combined)
+    return(combined_list)
+  }
+  else{
+    return(peaks_combined)}
 }
-
 
 #' @title Merge peak-cell count matrices.
 #' @description This function takes the peak-count matrices for different samples, stored in a list with a slot for every sample and merges these matrices.
