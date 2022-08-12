@@ -276,7 +276,7 @@ prolong_upstream <- function(annotations=NULL,gene_element=NULL, prolong=2000) {
 #' @examples
 #' peak_genes <- peaks_on_gene(peak_features = rownames(merged_atac_filt), annotations = anno)
 #' @export
-peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, split="[-:]", TSSmode=T) {
+peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, split="[-:]", TSSmode=T, chunk_size=1000L) {
   start_time2 <- Sys.time()
   if ( is.null(annotations) && is.null(gene_element)) {stop("either annotations or gene_element has to be provided")}
   if ( !is.null(annotations) && !is.null(gene_element)) {stop("either annotations OR gene_ement has to be provided")}
@@ -311,18 +311,13 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     gene_chrom_index[[chromosomes[i]]][["TSSset"]] <-  data$TSSset[index]
   }
   cat("start_overlapping_peaks", "\n")
-  cores <- as.numeric(availableCores() -2)
-  cat("available_cores:", cores, "\n")
-  plan(multisession,workers = cores )
-  computing <- cores*1000
-  peak_list <- create_data_chunks(peaks, computing)
-
+  peak_list <- create_data_chunks(peaks, chunk_size)
   peaks <- c()
-  cat("processing_", min(nrow(peak_list[[1]]), computing), "_rows_at_a_time", "\n", sep="")
+  cat("processing_", min(nrow(peak_list[[1]]), chunk_size), "_rows_at_a_time", "\n", sep="")
   n_processing <- 0
   for (n in 1:length(peak_list)) {
     n_processing <- n_processing +  nrow(peak_list[[n]])
-    cat("processing_rows " , n*computing-(computing-1), " to ", min(n_processing, n*computing), " ")
+    cat("processing_rows " , n*chunk_size-(chunk_size-1), " to ", min(n_processing, n*chunk_size), " ")
     start_time <- Sys.time()
     peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index) {
       chr <- peak[x,1]
@@ -531,7 +526,7 @@ give_activity <- function(gene_peaks, peak_matrix) {
 #' @examples
 #' closest_gene <- peaks_closest_gene(peak_genes,anno)
 #' @export
-peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmode=T, fast=F) {
+peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmode=T, fast=F, chunk_size=1000) {
   start_time2 <- Sys.time()
   if ( is.null(annotations) && is.null(gene_element)) {stop("either annotations or gene_element has to be provided")}
   if ( !is.null(annotations) && !is.null(gene_element)) {stop("either annotations OR gene_ement has to be provided")}
@@ -578,19 +573,13 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peaks_nam_not_annotated <- rownames(peaks_not_annotated)
   peaks <- c()
   cat("start_looking_for_closest_gene", "\n")
-  cores <- as.numeric(availableCores() -2)
-  cat("available_cores:", cores, "\n")
-
-  computing <- cores*1000
-  peak_list <- create_data_chunks(peaks_not_annotated, computing)
-
+  peak_list <- create_data_chunks(peaks_not_annotated, chunk_size)
   peaks_not_annotated <- c()
-  plan(multisession,workers = cores )
   n_processing <- 0
   for (n in 1:length(peak_list)) {
 
     n_processing <- n_processing +  nrow(peak_list[[n]])
-    cat("processing_rows " , n*computing-(computing-1), " to ", min(n_processing, n*computing), " ")
+    cat("processing_rows " , n*chunk_size-(chunk_size-1), " to ", min(n_processing, n*chunk_size), " ")
     start_time <- Sys.time()
     peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index,TSSmode) {
 
