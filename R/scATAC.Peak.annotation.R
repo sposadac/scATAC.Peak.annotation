@@ -143,7 +143,7 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
     })
     annotations <- cbind(annotations, TSL=as.character(get_tsl))
   }
-
+  
   colnames <- c("seqnames", "genome_build", "gene_region", "start", "end", "score", "strand", "frame", "gene_info", "gene_biotype", "transcript_biotype", "gene_name", "gene_id")
   if (TSL) {
     colnames(annotations) <- c(colnames, "TSL")
@@ -160,26 +160,27 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   TSS_pos[which(gene_element$strand == "-")] <- gene_element$end[which(gene_element$strand == "-")]
   TSS_pos <- as.character(TSS_pos)
   gene_element <- cbind(gene_element, TSSrange=TSS_pos, TSSset=TSS_pos)
-
+  
   non_unique <- names(table(gene_element$gene_name)[table(gene_element$gene_name) != 1 ])
   cat("collapse genes to locus", "\n")
-
+  
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   start_time <- Sys.time()
   plan(multisession,workers = cores )
-
+  
   non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element, TSL) {
     index <- which(gene_element$gene_name == non_unique[x])
     uni <- gene_element[index[1],]
+    gene_id <- gene_element$gene_id[index]
     tss_pos_col <- as.numeric(gene_element$TSSrange[index])
     tss_pos_col <- tss_pos_col[order(tss_pos_col)]
     if (TSL) {
       tsl_uni <- length(unique(gene_element$TSL[index]))
       if (tsl_uni != 1) {
         uni[9] <- paste0(gene_element$TSL[index], collapse = "|")}
-        uni[10] <- paste0(tss_pos_col[1],"-", tss_pos_col[length(tss_pos_col)])
-        uni[11] <- paste(tss_pos_col, collapse = "|")
+      uni[10] <- paste0(tss_pos_col[1],"-", tss_pos_col[length(tss_pos_col)])
+      uni[11] <- paste(tss_pos_col, collapse = "|")
     }
     else{
       uni[9] <- paste0(tss_pos_col[1],"-", tss_pos_col[length(tss_pos_col)])
@@ -187,15 +188,16 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
     }
     uni[2] <- min(gene_element[index, "start"])
     uni[3] <- max(gene_element[index, "end"])
+    uni[5] <- paste(unique(gene_id), collapse = "|")
     return(uni)
   }, non_unique=non_unique, gene_element=gene_element, TSL=TSL)
   end_time <- Sys.time()
   cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
-
+  
   non_unique_collapse <- do.call(rbind, non_unique_collapse)
-
+  
   gene_element <- rbind(gene_element[!gene_element$gene_name %in% non_unique,], non_unique_collapse)
-
+  
   if ( filter_reg_chr ) {
     cat("filtering for genes on regular chromosomes", "\n")
     gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d\\d$", gene_element$seqnames),]
@@ -207,7 +209,6 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   return(anno_list)
 }
-
 
 #' @title filter out genes spanning a too large range.
 #' @description this function filters out genes which span a region larger than a given threshold.
