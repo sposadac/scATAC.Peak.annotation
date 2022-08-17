@@ -288,7 +288,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   }
   cat("build_peak_table", "\n")
   peaks <- lapply(peak_features, function(x) {
-    strsplit(x, split = "[-:]")[[1]]
+     strsplit(x, split = "[-:]")[[1]]
   })
   peak_features <- c()
   if( class(as.numeric(peaks[[1]][2])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
@@ -319,12 +319,13 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     n_processing <- n_processing +  nrow(peak_list[[n]])
     cat("processing_rows " , n*chunk_size-(chunk_size-1), " to ", min(n_processing, n*chunk_size), " ")
     start_time <- Sys.time()
-    peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index) {
-      chr <- peak[x,1]
+    peak_list[[n]] <- future.apply::future_apply(peak_list[[n]], MARGIN=1, function(peak, chr_index) {
+
+      chr <- peak[1]
       gene_starts <- chr_index[[chr]][["starts"]]
       gene_ends <- chr_index[[chr]][["ends"]]
-      peak_start <- as.numeric(peak[x,2])
-      peak_end <- as.numeric(peak[x,3])
+      peak_start <- as.numeric(peak[2])
+      peak_end <- as.numeric(peak[3])
       
       left1 <- gene_starts >= peak_start ### peak overlap left or span the whole gene
       left2 <- gene_starts <= peak_end
@@ -387,13 +388,13 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
         gene_names <- c(gene_left, gene_right, gene_mid)
         if (length(gene_names) > 1) { gene_names <- unique(gene_names)}
         if (length(gene_names) == 1) {
-          return(c(peak[x,],unlist(strsplit(gene_names, split = "_"))))
+          return(c(peak, unlist(strsplit(gene_names, split="_"))))
         }
         else if (length(gene_names) == 0) {
-          return(c(peak[x,], "nomatch", ".", ".", ".","."))
+          return(c(peak, "nomatch", ".", ".", ".","."))
         }
         else {
-          to_return <- matrix(rep(peak[x,],length(gene_names)),nrow = length(gene_names), byrow = T)
+          to_return <- matrix(rep(peak, length(gene_names)), nrow=length(gene_names), byrow=T)
           to_return <- cbind(to_return, t(sapply(gene_names, function(x) { y <- strsplit(x, split="_"); y <- unlist(y) })))
           return(to_return)
         }
@@ -402,18 +403,26 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
         gene_names <- c(gene_left, gene_right, gene_mid)
         if (length(gene_names) > 1) { gene_names <- unique(gene_names)}
         if (length(gene_names) == 1) {
-          return(c(peak[x,],gene_names))
+          return(c(peak, gene_names))
         }
         else if (length(gene_names) == 0) {
-          return(c(peak[x,], "nomatch"))
+          return(c(peak, "nomatch"))
         }
         else {
           overlap_nam <- paste(gene_names, collapse = "|")
-          return(c(peak[x,], overlap_nam))
+          return(c(peak, overlap_nam))
         }
       }
-    }, chr_index=gene_chrom_index, peak=peak_list[[n]])
-    peak_list[[n]] <- do.call(rbind, peak_list[[n]])
+    }, chr_index=gene_chrom_index)
+    # since a call to FUN returns a vector of length > 1, the return type of
+    # future_apply can be either a list or an array
+    if (is(peak_list[[n]], "list")) {
+      peak_list[[n]] <- do.call(rbind, peak_list[[n]])
+    } else if (is(peak_list[[n]], "array")) {
+      peak_list[[n]] <- t(peak_list[[n]])
+    } else {
+      stop("Unexpected return type:", class(peak_list[[n]]))
+    }
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
@@ -581,14 +590,14 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
     n_processing <- n_processing +  nrow(peak_list[[n]])
     cat("processing_rows " , n*chunk_size-(chunk_size-1), " to ", min(n_processing, n*chunk_size), " ")
     start_time <- Sys.time()
-    peak_list[[n]] <- future.apply::future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, peak,chr_index,TSSmode) {
+    peak_list[[n]] <- future.apply::future_apply(peak_list[[n]], MARGIN=1, function(peak, chr_index, TSSmode) {
 
-      chr <- peak[x,1]
+      chr <- peak[1]
       gene_starts <- chr_index[[chr]][["starts"]]
       gene_ends <- chr_index[[chr]][["ends"]]
 
-      left <- gene_starts - as.numeric(peak[x,3]) ### upstream +
-      right <- as.numeric(peak[x,2]) - gene_ends ### upstream -
+      left <- gene_starts - as.numeric(peak[3]) ### upstream +
+      right <- as.numeric(peak[2]) - gene_ends ### upstream -
       abs_left <- abs(left) ### shortest distance to gene start
       abs_right <- abs(right) ### shortest distance to gene ends
       left[left < 0] <- Inf  ## if < 0 peak starts after genes start
@@ -617,8 +626,8 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
           gene_general <- paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|")#, min(abs_right), sep = "_")
           dist_general <- min(abs_right)
         }
-        return(c(peak[x,], gene_downstream, gene_general, distance, dist_general))}
-      else{
+        return(c(peak, gene_downstream, gene_general, distance, dist_general))
+      } else {
         if (min(left) < min(right)) {
           gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|"),min(left), sep = "_")
         }
@@ -634,15 +643,17 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
         else{
           gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|"), min(abs_right), sep = "_")
         }
-        return(c(peak[x,], gene_downstream, gene_general))
+        return(c(peak, gene_downstream, gene_general))
       }
 
-    },chr_index=gene_chrom_index, peak=peak_list[[n]], TSSmode=TSSmode )
-    peak_list[[n]] <- do.call(rbind, peak_list[[n]])
+    }, chr_index=gene_chrom_index, TSSmode=TSSmode)
+    # since a call to FUN returns a vector of length > 1 and these vectors have
+    # the same length, the return type of future_apply is an array
+    peak_list[[n]] <- t(peak_list[[n]])
     end_time <- Sys.time()
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
-  peaks_close <- do.call(rbind,peak_list)
+  peaks_close <- do.call(rbind, peak_list)
   rownames(peaks_close) <- peaks_nam_not_annotated
   cat(dim(peaks_close), "\n")
   if (fast == F) {
