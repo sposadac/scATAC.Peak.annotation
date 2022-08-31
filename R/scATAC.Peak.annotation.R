@@ -687,7 +687,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
 #' @examples
 #' combined.peaks <- give_combined_peaks(atac_layer)
 #' @export
-give_combined_peaks <- function(atac_layer, filter_reg_chr=T) {
+give_combined_peaks <- function(atac_layer, filter_reg_chr=F) {
   cat("build_peak_table for each sample", "\n")
   atac_layer_peaks <- lapply(atac_layer, function(x) {
     peaks <- rownames(x)
@@ -703,7 +703,7 @@ give_combined_peaks <- function(atac_layer, filter_reg_chr=T) {
   if (filter_reg_chr==T){
     cat("filter for peaks on regular chromosomes", "\n")
     atac_layer_peaks_gr <- lapply(atac_layer_peaks, function(x){
-      y <- x[grep("chr", x[,1]),]
+      y <- x[grepl("^[0-9XYMTCHRxymtchr]+$", x[,1], perl=T),]
     })
   }
   cat("make genomic ranges for peaks of each sample", "\n")
