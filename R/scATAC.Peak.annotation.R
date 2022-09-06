@@ -45,7 +45,27 @@ stardardize_chr_names <- function(peaks, annotation) {
               "chromosomes"=chromosomes))
 }
 
-#' @importFrom future availableCores plan future::multicore
+
+extract_attribute <- function(annot_attributes, attribute, return_msg) {
+  # internal function
+  # annot_attributes: column of data.frame containing semicolon-separated list
+  #                   of tag-value pairs
+  # attribute: attribute to be extracted from semicolon-separated list
+  # return_msg: message to return if attribute is not found
+  att <- sapply(annot_attributes, function(x) {
+    y <- strsplit(x, split=" ")[[1]]
+    y <- sub(";", "", y)
+    if (attribute %in% y) {
+      z <- y[which(y == attribute) + 1]
+    } else{
+      z <- return_msg
+    }
+  })
+  return(as.character(att))
+}
+
+
+#' @importFrom future availableCores plan multisession
 #' @import future.apply
 #' @import Matrix
 #' @import Matrix.utils
@@ -78,70 +98,31 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   annotations <- annotations[annotations$V3 == "transcript",]
   cat("get_coding_information_and_filter", "\n")
   cat("get_gene_coding_information", "\n")
-  gene_biotype <- sapply(annotations$V9, function(x){
-    y <- strsplit(x, split=" ")[[1]]
-    y <- sub(";", "", y)
-    if ("gene_biotype" %in% y) {
-      z <- y[which( y == "gene_biotype")+1]
-    }
-    else{
-      z <- "no_gene_biotype"
-    }
-  })
-  gene_biotype <- as.character(gene_biotype)
+  gene_biotype <- extract_attribute(annotations$V9, "gene_biotype", "no_gene_biotype")
   annotations <- cbind(annotations, gene_biotype=gene_biotype)
   cat("get_transcript_coding_information", "\n")
-  transcript_biotype <- sapply(annotations$V9, function(x){
-    y <- strsplit(x, split=" ")[[1]]
-    y <- sub(";", "", y)
-    if ("transcript_biotype" %in% y) {
-      z <- y[which( y == "transcript_biotype")+1]
-    }
-    else{
-      z <- "no_transcript_biotype"
-    }
-  })
-  transcript_biotype <- as.character(transcript_biotype)
+  transcript_biotype <- extract_attribute(annotations$V9, "transcript_biotype", "no_transcript_biotype")
   annotations <- cbind(annotations, transcript_biotype=transcript_biotype)
   if (filter_transcript_biotype){
     annotations <- annotations[annotations$transcript_biotype %in% coding,]
   }
   else{
     annotations <- annotations[annotations$gene_biotype %in%  coding | annotations$transcript_biotype %in% coding,]}
-  cat("retrieve gene name", "\n")
-  gene_name <- sapply(annotations$V9, function(x){
-    y <- strsplit(x, split = " ")[[1]]
-    y <- sub(";", "", y)
-    if ("gene_name" %in% y) {
-      z <- y[which( y == "gene_name")+1]
-    }
-    else{
-      z <- y[which( y == "gene_id")+1]
-    }
-  })
-  gene_name <- as.character(gene_name)
-  annotations <- cbind(annotations, gene_name=gene_name)
   cat("retrieve gene ID", "\n")
-  gene_id <- sapply(annotations$V9, function(x){
-    y <- strsplit(x, split = " ")[[1]]
-    y <- sub(";", "", y)
-    z <- y[which( y == "gene_id")+1]
-  })
-  gene_id <- as.character(gene_id)
+  gene_id <- extract_attribute(annotations$V9, "gene_id", "")
+  if (any(gene_id == "")) {
+      stop("gene_id missing in annotation attributes")
+  }
+  cat("retrieve gene name", "\n")
+  gene_name <- extract_attribute(annotations$V9, "gene_name", "")
+  gene_name[gene_name == ""] <- gene_id[gene_name == ""]
+  annotations <- cbind(annotations, gene_name=gene_name)
   annotations <- cbind(annotations, gene_id=gene_id)
+
   if (TSL){
     cat("retrieve gene TSL", "\n")
-    get_tsl <- sapply(annotations$V9, function(x){
-      y <- strsplit(x, split = " ")[[1]]
-      y <- sub(";", "", y)
-      if ("transcript_support_level" %in% y) {
-        z <- y[which( y == "transcript_support_level")+1]
-      }
-      else{
-        z <- "no_TSL"
-      }
-    })
-    annotations <- cbind(annotations, TSL=as.character(get_tsl))
+    get_tsl <- extract_attribute(annotations$V9, "transcript_support_level", "no_TSL")
+    annotations <- cbind(annotations, TSL=get_tsl)
   }
 
   colnames <- c("seqnames", "genome_build", "gene_region", "start", "end", "score", "strand", "frame", "gene_info", "gene_biotype", "transcript_biotype", "gene_name", "gene_id")
