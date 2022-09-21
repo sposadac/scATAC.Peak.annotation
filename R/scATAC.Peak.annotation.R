@@ -142,7 +142,9 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   TSS_pos <- as.character(TSS_pos)
   gene_element <- cbind(gene_element, TSSrange=TSS_pos, TSSset=TSS_pos)
 
-  non_unique <- names(table(gene_element$gene_name)[table(gene_element$gene_name) != 1 ])
+  # Use gene_id, rather than gene_name as the latter is not always unique
+  # (e.g., rRNAs)
+  non_unique <- names(table(gene_element$gene_id)[table(gene_element$gene_id) != 1 ])
   cat("collapse genes to locus", "\n")
 
   cores <- as.numeric(availableCores() -2)
@@ -151,9 +153,9 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   plan(future::multicore,workers = cores )
 
   non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element, TSL) {
-    index <- which(gene_element$gene_name == non_unique[x])
+    index <- which(gene_element$gene_id == non_unique[x])
     uni <- gene_element[index[1],]
-    gene_id <- gene_element$gene_id[index]
+    gene_name <- gene_element$gene_name[index]
     tss_pos_col <- as.numeric(gene_element$TSSrange[index])
     tss_pos_col <- tss_pos_col[order(tss_pos_col)]
     if (TSL) {
@@ -169,7 +171,7 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
     }
     uni[2] <- min(gene_element[index, "start"])
     uni[3] <- max(gene_element[index, "end"])
-    uni[5] <- paste(unique(gene_id), collapse = "|")
+    uni[6] <- paste(unique(gene_name), collapse = "|")
     return(uni)
   }, non_unique=non_unique, gene_element=gene_element, TSL=TSL)
   end_time <- Sys.time()
@@ -177,8 +179,9 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
 
   non_unique_collapse <- do.call(rbind, non_unique_collapse)
 
-  gene_element <- rbind(gene_element[!gene_element$gene_name %in% non_unique,], non_unique_collapse)
-
+  
+  gene_element <- rbind(gene_element[!gene_element$gene_id %in% non_unique,], non_unique_collapse)
+  
   if ( filter_reg_chr ) {
     cat("filtering for genes on regular chromosomes", "\n")
     gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d\\d$", gene_element$seqnames),]
@@ -290,6 +293,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     gene_chrom_index[[chromosomes[i]]][["starts"]] <- as.numeric(data$start)[index]
     gene_chrom_index[[chromosomes[i]]][["ends"]] <- as.numeric(data$end)[index]
     gene_chrom_index[[chromosomes[i]]][["gene_names"]] <-  data$gene_name[index]
+    gene_chrom_index[[chromosomes[i]]][["gene_ids"]] <- data$gene_id[index]
     gene_chrom_index[[chromosomes[i]]][["strand"]] <-  data$strand[index]
     gene_chrom_index[[chromosomes[i]]][["TSSset"]] <-  data$TSSset[index]
   }
@@ -323,33 +327,36 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
 
       # NOTE: since equalities are allowed, make sure we don't annotate peaks
       # redundantly (e.g., as peak on gene and also as gene-overlap)
-      gene_left <- chr_index[[chr]][["gene_names"]][(left1 & left2) & !(mid1 & mid2)]
-      gene_right <- chr_index[[chr]][["gene_names"]][(right1 & right2) & !(mid1 & mid2)]
-      gene_mid <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
+      gene_left <- chr_index[[chr]][["gene_ids"]][(left1 & left2) & !(mid1 & mid2)]
+      gene_right <- chr_index[[chr]][["gene_ids"]][(right1 & right2) & !(mid1 & mid2)]
+      gene_mid <- chr_index[[chr]][["gene_ids"]][mid1 & mid2]
       if (TSSmode) { #### ad distance here TSS here
         if ( length(gene_left) > 0  ) {
           index <- which((left1 & left2) & !(mid1 & mid2))
+          gene_names <- chr_index[[chr]][["gene_names"]][index]
           distances <- chr_index[[chr]][["TSSset"]][index]
           distances <- strsplit(distances, "\\|")
           distances <- lapply(distances, function(x) {as.numeric(x) - peak_start})
           distances <- lapply(distances, function(x) {paste(x, collapse = "|")})
           distances <- unlist(distances)
-          gene_left <- paste0(gene_left, "_",chr_index[[chr]][["strand"]][index],"_","TSS.overlap.dist.Pstart.","_",as.character(distances),"_", ".")
-          gene_left <- sub("\\_-_TSS.overlap.dist.+", "_-_._._.", gene_left)
+          gene_left <- paste0(gene_left, ";", gene_names, ";", chr_index[[chr]][["strand"]][index], ";", "TSS.overlap.dist.Pstart.", ";", as.character(distances), ";", ".")
+           gene_left <- sub("\\;-;TSS.overlap.dist.+", ";-;.;.;.", gene_left)
         } ### do also for right and mid
         if (length(gene_right) > 0) {
           index <- which((right1 & right2) & !(mid1 & mid2))
+          gene_names <- chr_index[[chr]][["gene_names"]][index]
           distances <- chr_index[[chr]][["TSSset"]][index]
           distances <- strsplit(distances, "\\|")
           distances <- lapply(distances, function(x) { peak_end - as.numeric(x) })
           distances <- lapply(distances, function(x) {paste(x, collapse = "|")})
           distances <- unlist(distances)
-          gene_right <- paste0(gene_right, "_",chr_index[[chr]][["strand"]][index],"_" ,"TSS.overlap.dist.Pend.","_",as.character(distances), "_", ".")
-          gene_right <- sub("_\\+_TSS.overlap.dist.+", "_+_._._.", gene_right)
+          gene_right <- paste0(gene_right, ";", gene_names, ";", chr_index[[chr]][["strand"]][index], ";" , "TSS.overlap.dist.Pend.", ";", as.character(distances), ";", ".")
+          gene_right <- sub(";\\+;TSS.overlap.dist.+", ";+;.;.;.", gene_right)
         }
         if (length(gene_mid) > 0) {
           ### for alternative TSS
           index <- which(mid1 & mid2)
+          gene_names <- chr_index[[chr]][["gene_names"]][index]
           distances <- chr_index[[chr]][["TSSset"]][index]
           distances <- strsplit(distances, "\\|")
           distances1 <- lapply(distances, function(x) {as.numeric(x) - peak_start})
@@ -370,36 +377,43 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
           vorzeichen[which(vorzeichen == "")] <- "."
           distances2 <- lapply(distances2, function(x) {paste(x, collapse = "|")})
           distances2 <- unlist(distances2)
-          gene_mid1 <- paste0(gene_mid, "_",chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pstart.","_",as.character(distances1), "_",vorzeichen)
-          gene_mid2 <- paste0(gene_mid, "_", chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pend.","_",as.character(distances2), "_",vorzeichen)
+          gene_mid1 <- paste0(gene_mid, ";", gene_names, ";",chr_index[[chr]][["strand"]][index], ";", "TSS.dist.Pstart.", ";", as.character(distances1), ";", vorzeichen)
+          gene_mid2 <- paste0(gene_mid, ";", gene_names, ";", chr_index[[chr]][["strand"]][index], ";", "TSS.dist.Pend.", ";", as.character(distances2), ";", vorzeichen)
           gene_mid <- c(gene_mid1, gene_mid2)
         }
-        gene_names <- c(gene_left, gene_right, gene_mid)
-        if (length(gene_names) > 1) { gene_names <- unique(gene_names)}
-        if (length(gene_names) == 1) {
-          return(c(peak[x,],unlist(strsplit(gene_names, split = "_"))))
+        gene_ids <- c(gene_left, gene_right, gene_mid)
+        if (length(gene_ids) > 1) { gene_ids <- unique(gene_ids)}
+        if (length(gene_ids) == 1) {
+          return(c(peak[x,],unlist(strsplit(gene_ids, split = ";"))))
         }
-        else if (length(gene_names) == 0) {
-          return(c(peak[x,], "nomatch", ".", ".", ".","."))
+        else if (length(gene_ids) == 0) {
+          return(c(peak[x,], "nomatch", "nomatch", ".", ".", ".","."))
         }
         else {
-          to_return <- matrix(rep(peak[x,],length(gene_names)),nrow = length(gene_names), byrow = T)
-          to_return <- cbind(to_return, t(sapply(gene_names, function(x) { y <- strsplit(x, split="_"); y <- unlist(y) })))
+          to_return <- matrix(rep(peak[x,], length(gene_ids)), nrow=length(gene_ids), byrow=T)
+          to_return <- cbind(to_return, t(sapply(gene_ids, function(x) { y <- strsplit(x, split=";"); y <- unlist(y) })))
           return(to_return)
         }
       }
       else{
-        gene_names <- c(gene_left, gene_right, gene_mid)
-        if (length(gene_names) > 1) { gene_names <- unique(gene_names)}
-        if (length(gene_names) == 1) {
-          return(c(peak[x,],gene_names))
+        gene_ids <- c(gene_left, gene_right, gene_mid)
+        gene_names <- chr_index[[chr]][["gene_names"]][(left1 & left2) & !(mid1 & mid2)]
+        gene_names <- c(gene_names, chr_index[[chr]][["gene_names"]][(right1 & right2) & !(mid1 & mid2)])
+        gene_names <- c(gene_names, chr_index[[chr]][["gene_names"]][mid1 & mid2])
+        if (length(gene_ids) > 1) {
+            gene_names <- gene_names[!duplicated(gene_ids)]
+            gene_ids <- gene_ids[!duplicated(gene_ids)]
         }
-        else if (length(gene_names) == 0) {
-          return(c(peak[x,], "nomatch"))
+        if (length(gene_ids) == 1) {
+          return(c(peak[x,], gene_ids, gene_names))
+        }
+        else if (length(gene_ids) == 0) {
+          return(c(peak[x,], "nomatch", "nomatch"))
         }
         else {
+          overlap_ids <- paste(gene_ids, collapse = "|")
           overlap_nam <- paste(gene_names, collapse = "|")
-          return(c(peak[x,], overlap_nam))
+          return(c(peak[x,], overlap_ids, overlap_nam))
         }
       }
     }, chr_index=gene_chrom_index, peak=peak_list[[n]])
@@ -408,16 +422,17 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
   }
   peak_ongene <- do.call(rbind, peak_list)
+  rownames(peak_ongene) <- paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])
   if (TSSmode==T){
-    rownames(peak_ongene) <- paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])
-    colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "peak_on_gene", "strand", "TSSinfo", "TSSdistance", "overlap.alter.TSS")
-    peaks_length <- apply(peak_ongene, 1, function(x) {
-      length(as.numeric(x[2]):as.numeric(x[3]))
-    })
-    peak_ongene<- cbind(peak_ongene, peaks_length=peaks_length)
+    colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "gene_id", "peak_on_gene", "strand", "TSSinfo", "TSSdistance", "overlap.alter.TSS")
   }
   else{
-    rownames(peak_ongene) <-  paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])}
+    colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "gene_id", "peak_on_gene")
+  }
+  peaks_length <- apply(peak_ongene, 1, function(x) {
+    length(as.numeric(x[2]):as.numeric(x[3]))
+  })
+  peak_ongene<- cbind(peak_ongene, peaks_length=peaks_length)
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   plan(future::sequential)
@@ -541,26 +556,53 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
     gene_chrom_index[[chromosomes[i]]][["starts"]] <- as.numeric(data$start)[index]
     gene_chrom_index[[chromosomes[i]]][["ends"]] <- as.numeric(data$end)[index]
     gene_chrom_index[[chromosomes[i]]][["gene_names"]] <-  data$gene_name[index]
+    gene_chrom_index[[chromosomes[i]]][["gene_ids"]] <- data$gene_id[index]
     gene_chrom_index[[chromosomes[i]]][["strand"]] <- data$strand[index]
   }
   cat("separate into peaks with no match and peaks which showed overlap", "\n")
   if (fast==F) {
-  peaks_annotated <- peaks[peaks[,4] != "nomatch",]
-  if ( TSSmode==T){
-    cat("cbind_peaks_on_gene", "\n")
-    peaks_annotated_end <- peaks_annotated[grep("TSS",peaks_annotated[,6], invert = T), , drop=FALSE]
-    peaks_annotated_end <- cbind(peaks_annotated_end, closest_downstream_gene=rep("",nrow(peaks_annotated_end)) ,closest_gene=rep("",nrow(peaks_annotated_end)),dist_clos_downstream=rep("",nrow(peaks_annotated_end)), dist_gene.edge_closest=rep("",nrow(peaks_annotated_end)))
-    cat("cbind_peaks_on_TSS", "\n")
-    peaks_annotated_TSS_ol <- peaks_annotated[grep("TSS.overlap",peaks_annotated[,6]), , drop=FALSE]
-    peaks_annotated_TSS_ol <- cbind(peaks_annotated_TSS_ol, closest_downstream_gene=peaks_annotated_TSS_ol[,4],closest_gene=peaks_annotated_TSS_ol[,4], dist_clos_downstream=rep("",nrow(peaks_annotated_TSS_ol)),dist_gene.edge_closest=rep("",nrow(peaks_annotated_TSS_ol)))
-    peaks_annotated_TSS_on <- peaks_annotated[grep("TSS.dist",peaks_annotated[,6]), , drop=FALSE]
-    peaks_annotated_TSS_on <- cbind(peaks_annotated_TSS_on, closest_downstream_gene=peaks_annotated_TSS_on[,4],closest_gene=peaks_annotated_TSS_on[,4], dist_clos_downstream=rep("",nrow(peaks_annotated_TSS_on)),dist_gene.edge_closest=rep("",nrow(peaks_annotated_TSS_on)))
+    peaks_annotated <- peaks[peaks[, "gene_id"] != "nomatch",]
+    if ( TSSmode==T){
+      cat("cbind_peaks_on_gene", "\n")
+      peaks_annotated_end <- peaks_annotated[grep("TSS", peaks_annotated[, "TSSinfo"], invert = T), , drop=FALSE]
+      peaks_annotated_end <- cbind(peaks_annotated_end,
+                                   closest_downstream_gene_id=rep("", nrow(peaks_annotated_end)),
+                                   closest_downstream_gene=rep("", nrow(peaks_annotated_end)),
+                                   dist_clos_downstream=rep("", nrow(peaks_annotated_end)),
+                                   closest_gene_id=rep("", nrow(peaks_annotated_end)),
+                                   closest_gene=rep("", nrow(peaks_annotated_end)),
+                                   dist_gene.edge_closest=rep("",nrow(peaks_annotated_end)))
+      cat("cbind_peaks_on_TSS", "\n")
+      peaks_annotated_TSS_ol <- peaks_annotated[grep("TSS.overlap", peaks_annotated[, "TSSinfo"]), , drop=FALSE]
+      peaks_annotated_TSS_ol <- cbind(peaks_annotated_TSS_ol,
+                                      closest_downstream_gene_id=peaks_annotated_TSS_ol[, "gene_id"],
+                                      closest_downstream_gene=peaks_annotated_TSS_ol[, "peak_on_gene"],
+                                      dist_clos_downstream=rep("", nrow(peaks_annotated_TSS_ol)),
+                                      closest_gene_id=peaks_annotated_TSS_ol[, "gene_id"],
+                                      closest_gene=peaks_annotated_TSS_ol[, "peak_on_gene"],
+                                      dist_gene.edge_closest=rep("", nrow(peaks_annotated_TSS_ol)))
+      peaks_annotated_TSS_on <- peaks_annotated[grep("TSS.dist", peaks_annotated[, "TSSinfo"]), , drop=FALSE]
+      peaks_annotated_TSS_on <- cbind(peaks_annotated_TSS_on,
+                                      closest_downstream_gene_id=peaks_annotated_TSS_on[, "gene_id"],
+                                      closest_downstream_gene=peaks_annotated_TSS_on[, "peak_on_gene"],
+                                      dist_clos_downstream=rep("",nrow(peaks_annotated_TSS_on)),
+                                      closest_gene_id=peaks_annotated_TSS_on[, "gene_id"],
+                                      closest_gene=peaks_annotated_TSS_on[, "peak_on_gene"],
+                                      dist_gene.edge_closest=rep("",nrow(peaks_annotated_TSS_on)))
 
+    }
+    else{
+      peaks_annotated <- cbind(peaks_annotated,
+                               closest_downstream_gene_id=peaks_annotated[, "gene_id"],
+                               closest_downstream_gene=peaks_annotated[, "peak_on_gene"],
+                               closest_gene_id=peaks_annotated[, "gene_id"],
+                               closest_gene=peaks_annotated[, "peak_on_gene"])
+    }
+  } else {
+    # save for naming columns later on
+    ncols_peaks <- ncol(peaks)
   }
-  else{
-    peaks_annotated <- cbind(peaks_annotated, closest_downstream_gene=peaks_annotated[,4] ,closest_gene=peaks_annotated[,4])}
-  }
-  peaks_not_annotated <- peaks[peaks[,4] == "nomatch",]
+  peaks_not_annotated <- peaks[peaks[, "gene_id"] == "nomatch",]
   peaks_nam <- rownames(peaks)
   peaks_nam_not_annotated <- rownames(peaks_not_annotated)
   peaks <- c()
@@ -596,41 +638,62 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
       right[strand == "+"] <- Inf ### peak after gene end but genes on the + strand => not upstream
       if (TSSmode) {
         if (min(left) < min(right)) {
-          gene_downstream <- paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|")#,min(left), sep = "_")
+          idxs <- which(left == min(left))
+          gene_downstream <- paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|")#,min(left), sep = "_")
+          gene_ids_downstream <- paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|")
           distance <- min(left)
         }
         else if (min(left) > min(right)) {
-          gene_downstream <- paste(chr_index[[chr]][["gene_names"]][which(right == min(right))], collapse = "|")#, min(right), sep = "_")
+          idxs <- which(right == min(right))
+          gene_downstream <- paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|")#, min(right), sep = "_")
+          gene_ids_downstream <- paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|")
           distance <- min(right)
         }
         else{
           gene_downstream <- "no_downstream"
+          gene_ids_downstream <- "no_downstream"
           distance <- ""
         }
         if (min(abs_left) < min(abs_right)) {
-          gene_general <- paste(chr_index[[chr]][["gene_names"]][which(abs_left == min(abs_left))], collapse = "|")#, min(abs_left), sep = "_")
+          idxs <- which(abs_left == min(abs_left))
+          gene_general <- paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|")#, min(abs_left), sep = "_")
+          gene_ids_general <- paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|")
           dist_general <- min(abs_left)
         }
         else{
-          gene_general <- paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|")#, min(abs_right), sep = "_")
+          idxs <- which(abs_right == min(abs_right))
+          gene_general <- paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|")#, min(abs_right), sep = "_")
+          gene_ids_general <- paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|")
           dist_general <- min(abs_right)
         }
-        return(c(peak[x,], gene_downstream, gene_general, distance, dist_general))}
+        return(c(peak[x,], gene_ids_downstream, gene_downstream, distance, gene_ids_general, gene_general, dist_general))}
       else{
         if (min(left) < min(right)) {
-          gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(left == min(left))], collapse = "|"),min(left), sep = "_")
+          idxs <- which(left == min(left))
+          gene_downstream <- c(paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|"),
+                               paste(paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|"),
+                                     min(left), sep="_"))
         }
         else if (min(left) > min(right)) {
-          gene_downstream <- paste(paste(chr_index[[chr]][["gene_names"]][which(right == min(right))], collapse = "|"), min(right), sep = "_")
+          idxs <- which(right == min(right))
+          gene_downstream <- c(paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|"),
+                               paste(paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|"),
+                                     min(right), sep="_"))
         }
         else{
-          gene_downstream <- "no_downstream"
+          gene_downstream <- c("no_downstream", "no_downstream")
         }
         if (min(abs_left) < min(abs_right)) {
-          gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_left == min(abs_left))], collapse = "|"), min(abs_left), sep = "_")
+          idxs <- which(abs_left == min(abs_left))
+          gene_general <- c(paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|"),
+                            paste(paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|"),
+                                  min(abs_left), sep="_"))
         }
         else{
-          gene_general <- paste(paste(chr_index[[chr]][["gene_names"]][which(abs_right == min(abs_right))], collapse = "|"), min(abs_right), sep = "_")
+          idxs <- which(abs_right == min(abs_right))
+          gene_general <- c(paste(chr_index[[chr]][["gene_ids"]][idxs], collapse = "|"),
+                            paste(paste(chr_index[[chr]][["gene_names"]][idxs], collapse = "|"),
+                                  min(abs_right), sep="_"))
         }
         return(c(peak[x,], gene_downstream, gene_general))
       }
@@ -644,21 +707,32 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   rownames(peaks_close) <- peaks_nam_not_annotated
   cat(dim(peaks_close), "\n")
   if (fast == F) {
-  if (TSSmode) {
-    cat(dim(peaks_annotated_TSS_ol), "\n")
-    cat(dim(peaks_annotated_TSS_on), "\n")
-    peaks_on_gene <- rbind(peaks_annotated_TSS_ol, peaks_annotated_TSS_on)
-    peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_end)
-    cat(dim(peaks_on_gene), "\n")
-    peaks_close <- rbind(peaks_on_gene, peaks_close)
-    cat(dim(peaks_close), "\n")
+    if (TSSmode) {
+      cat(dim(peaks_annotated_TSS_ol), "\n")
+      cat(dim(peaks_annotated_TSS_on), "\n")
+      peaks_on_gene <- rbind(peaks_annotated_TSS_ol, peaks_annotated_TSS_on)
+      peaks_on_gene <- rbind(peaks_on_gene, peaks_annotated_end)
+      cat(dim(peaks_on_gene), "\n")
+      peaks_close <- rbind(peaks_on_gene, peaks_close)
+      cat(dim(peaks_close), "\n")
+    }
+    else{
+      cat(dim(peaks_annotated), "\n")
+      cat(dim(peaks_close), "\n")
+      peaks_close <- rbind(peaks_annotated, peaks_close)}
+    }
+  else {
+      if (TSSmode) {
+        colnames(peaks_close)[-(1:ncols_peaks)] <-
+          c("closest_downstream_gene_id", "closest_downstream_gene",
+            "dist_clos_downstream", "closest_gene_id", "closest_gene",
+            "dist_gene.edge_closest")
+      } else {
+        colnames(peaks_close)[-(1:ncols_peaks)] <-
+          c("closest_downstream_gene_id", "closest_downstream_gene",
+            "closest_gene_id", "closest_gene")
+      }
   }
-  else{
-    cat(dim(peaks_annotated), "\n")
-    cat(dim(peaks_close), "\n")
-    peaks_close <- rbind(peaks_annotated, peaks_close)}
-  }
-  colnames(peaks_close) <- c("seqnames",                "Pstart"                 , "Pend"   , "peak_on_gene",           "strand"        ,          "TSSinfo"                ,"TSSdistance"       ,   "overlap.alter.TSS"   ,  "peaks_length"  ,         "closest_downstream_gene" ,"closest_gene" , "dist_clos_downstream"   , "dist_gene.edge_closest")
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   plan(future::sequential)
