@@ -74,7 +74,14 @@ This function takes the peaks which have been called on different samples by e.g
 combined.peaks <- give_combined_peaks(atac_layer) ### atac_layer = list object with each slot containing peak-cell matrix for a sample with (with rownames derived from each features.tsv and colnames derived from each barcodes.tsv)
 ``` 
 
+### Annotate peaks of different samples to overlapping peaks and merge to common peak-cell matrix
+This function replaces peaks which have been called on different samples, representing overlapping peaks with different start and or end positions, with provided overlapping peaks representing the union of overlapping peaks e.g. output of combined.peaks-function. The harmonized common peak-sets facilitates merging of peak-cell matrices of different samples to a common peak-cell matrix.
+``` r
+overlap_peaks <- merged_atac(combined.peaks = combined.peaks, atac_layer = atac_layer)
+overlap_peaks <- merged_atac(combined.peaks = combined.peaks, atac_layer = atac_layer, insert_run1=overlap_peaks)
+```
 
+### deprecated 
 ### Annotate peaks to overlapping peaks.
 This function annotates peaks which have been called on different samples, and thus could represent overlapping peaks with different start and or end positions to a provided overlapping peaks e.g. output of combined.peaks-function. In addition a provided peak-cell count matrix can be aggregated across the common overlapping peak set.
 #### Examples

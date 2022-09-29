@@ -837,3 +837,74 @@ merge_samples <- function(list.samples) {
   layer_merge
 }
 
+
+merged_atac <- function(combined.peaks, atac_layer, insert_run1=NULL) {
+  if (is.null(insert_run1)) {
+  start_time <- Sys.time()
+  atac_layer <- lapply(atac_layer, function(x) { rownames(x)})
+  atac_layer <- Reduce(append,atac_layer )
+  peaks_combined <- data.frame(combined.peaks)
+  peaks_combined <- paste0(peaks_combined[,1],":", peaks_combined[,2], "-", peaks_combined[,3])
+  combined.peaks <- combined.peaks@elementMetadata
+  for ( i in 1:nrow(combined.peaks)) {
+    cat(i, "\n")
+    atac_layer[combined.peaks[i,][[1]]] <- peaks_combined[i]
+  }
+  end_time <- Sys.time()
+  cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
+  return(atac_layer)}
+  else{
+  boundaries <- unlist(lapply(atac_layer, function(x){
+    dim(x)[1]
+  }))
+  iterator <- 0
+  for ( i in 1:length(atac_layer)) {
+    rownames(atac_layer[[i]]) <- insert_run1[(iterator+1):(iterator+boundaries[i])]
+    iterator <- iterator + boundaries[i]
+  }
+  
+  peaks_combined <- data.frame(combined.peaks)
+  peaks_combined <- paste0(peaks_combined[,1],":", peaks_combined[,2], "-", peaks_combined[,3])
+  atac_layer <- lapply(seq_along(atac_layer), function(x, atac_layer,peaks_combined) {
+    start_time <- Sys.time()
+    feat_others <- peaks_combined[! peaks_combined %in% rownames(atac_layer[[x]])]
+    
+    make_zero <- round(length(feat_others)/4)
+    iterator <- 0
+    for ( i in 1:4) {
+      if (i == 4) {
+        make_zero <- length(feat_others) - iterator
+      }
+      mat <- rep(0,make_zero*as.numeric(ncol(atac_layer[[x]])))
+      mat <- matrix(mat, ncol = ncol(atac_layer[[x]]))
+      mat <- Matrix(mat, sparse = T)
+      if ( i == 1) { mat_merge <- mat}
+      else {mat_merge <- rbind(mat_merge, mat)}
+      cat(dim(mat_merge), "\n")
+      iterator <- iterator + make_zero
+      cat(iterator, "\n")
+    }
+    iterator <- c()
+    mat <- c()
+    rownames(mat_merge) <- feat_others
+    mat_merge <- rbind(atac_layer[[x]],mat_merge)
+    mat_merge <- mat_merge[order(rownames(mat_merge)),]
+    cat(dim(mat_merge), "\n")
+    end_time <- Sys.time()
+    cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
+    return(mat_merge)
+  }, peaks_combined=peaks_combined, atac_layer=atac_layer)
+  atac_layer <- lapply(seq_along(atac_layer), function(x, atac_layer) {
+    start_time <- Sys.time()
+    cat("processing ", names(atac_layer)[x], "\n")
+    agg <- aggregate.Matrix(atac_layer[[x]], as.factor(rownames(atac_layer[[x]])), fun = "sum")
+    agg <- agg[order(rownames(agg)),]
+    end_time <- Sys.time()
+    cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
+    agg
+  }, atac_layer=atac_layer)
+  
+  atac_layer <- do.call(cbind, atac_layer)
+  return(atac_layer)
+  }
+}
