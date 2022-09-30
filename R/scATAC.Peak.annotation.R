@@ -712,7 +712,7 @@ give_combined_peaks <- function(atac_layer, filter_reg_chr=F) {
   })
   cat("reduce peaks of different samples to comman overapping peak set", "\n")
   to_reduce <- paste0("c(", paste0("atac_layer_peaks_gr", "[[", 1:length(atac_layer_peaks_gr), "]]", collapse = "," ), ")")
-  combined.peaks <- reduce(x = eval(parse(text = to_reduce)))
+  combined.peaks <- reduce(x = eval(parse(text = to_reduce)), with.revmap = T)
   return(combined.peaks)
 }
 
