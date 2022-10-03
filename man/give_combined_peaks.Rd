@@ -4,10 +4,10 @@
 \alias{give_combined_peaks}
 \title{Get combined overlapping peak set.}
 \usage{
-give_combined_peaks(atac_layer, filter_reg_chr = T)
+give_combined_peaks(atac_layer, filter_reg_chr = F)
 }
 \arguments{
-\item{atac_layer}{list of peak-cell count matrix of the different samples, with rows as peaks and cells as columns.}
+\item{atac_layer}{list of peak-cell count matrices of the different samples, with rows as peaks and cells as columns.}
 
 \item{filter_reg_chr}{logical. If \code{T}, only genes are included which are on regular chromosomes..}
 }

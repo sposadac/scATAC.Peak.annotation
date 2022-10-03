@@ -27,7 +27,7 @@ stardardize_chr_names <- function(peaks, annotation) {
   chromosomes <- unique(as.character(annotation$seqnames))
   if (sum(chromosomes %in% chrom_peaks) == 0) {
     # check if chromosomes in annotations are only numeric + X, Y, MT
-    aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE) 
+    aux <- grepl("^[0-9XYMTxymt]+$", chromosomes, perl=TRUE)
     if (all(aux)) {
       annotation$seqnames <- paste0("chr", annotation$seqnames)
     } else {
@@ -143,7 +143,7 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
     })
     annotations <- cbind(annotations, TSL=as.character(get_tsl))
   }
-  
+
   colnames <- c("seqnames", "genome_build", "gene_region", "start", "end", "score", "strand", "frame", "gene_info", "gene_biotype", "transcript_biotype", "gene_name", "gene_id")
   if (TSL) {
     colnames(annotations) <- c(colnames, "TSL")
@@ -160,15 +160,15 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   TSS_pos[which(gene_element$strand == "-")] <- gene_element$end[which(gene_element$strand == "-")]
   TSS_pos <- as.character(TSS_pos)
   gene_element <- cbind(gene_element, TSSrange=TSS_pos, TSSset=TSS_pos)
-  
+
   non_unique <- names(table(gene_element$gene_name)[table(gene_element$gene_name) != 1 ])
   cat("collapse genes to locus", "\n")
-  
+
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   start_time <- Sys.time()
   plan(multisession,workers = cores )
-  
+
   non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element, TSL) {
     index <- which(gene_element$gene_name == non_unique[x])
     uni <- gene_element[index[1],]
@@ -193,11 +193,11 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   }, non_unique=non_unique, gene_element=gene_element, TSL=TSL)
   end_time <- Sys.time()
   cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
-  
+
   non_unique_collapse <- do.call(rbind, non_unique_collapse)
-  
+
   gene_element <- rbind(gene_element[!gene_element$gene_name %in% non_unique,], non_unique_collapse)
-  
+
   if ( filter_reg_chr ) {
     cat("filtering for genes on regular chromosomes", "\n")
     gene_element <- gene_element[grep("^chr|^X$|^Y$|^MT$|^M$|^\\d$|^\\d\\d$", gene_element$seqnames),]
@@ -331,14 +331,14 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       gene_ends <- chr_index[[chr]][["ends"]]
       peak_start <- as.numeric(peak[x,2])
       peak_end <- as.numeric(peak[x,3])
-      
+
       left1 <- gene_starts >= peak_start ### peak overlap left or span the whole gene
       left2 <- gene_starts <= peak_end
       right1 <- gene_ends >= peak_start ### peak overlap right or span the whole gene
       right2 <- gene_ends <= peak_end
       mid1 <- gene_starts <= peak_start ### peak on the gene
       mid2 <- gene_ends >= peak_end
-      
+
       gene_left <- chr_index[[chr]][["gene_names"]][left1 & left2]
       gene_right <- chr_index[[chr]][["gene_names"]][right1 & right2]
       gene_mid <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
@@ -380,10 +380,10 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
           vorzeichen <- lapply(vorzeichen, function(x) { apply(x, 2, function(y) { as.numeric(as.numeric(y[1] == y[2]) == 0) } )})
           vorzeichen <- Map(rbind, vorzeichen, distances)
 	  vorzeichen <- Map(rbind, vorzeichen, vorzeichenS_0)
-	  vorzeichen <- Map(rbind, vorzeichen, vorzeichenE_0) 
+	  vorzeichen <- Map(rbind, vorzeichen, vorzeichenE_0)
           vorzeichen <- lapply(vorzeichen, function(x) { paste(x[2,which(x[1,] == "1" | x[3,] == "1" | x[4,] == "1" )], collapse = "|")})
           vorzeichen <- unlist(vorzeichen)
-          vorzeichen[which(vorzeichen == "")] <- "." 
+          vorzeichen[which(vorzeichen == "")] <- "."
           distances2 <- lapply(distances2, function(x) {paste(x, collapse = "|")})
           distances2 <- unlist(distances2)
           gene_mid1 <- paste0(gene_mid, "_",chr_index[[chr]][["strand"]][index],"_","TSS.dist.Pstart.","_",as.character(distances1), "_",vorzeichen)
@@ -477,24 +477,24 @@ give_activity <- function(gene_peaks, peak_matrix) {
     n_processing <- n_processing +  nrow(activity_list[[n]])
     cat("processing_rows ", n*computing-(computing-1), " to ", min(n_processing, n*computing), " ")
     start_time <- Sys.time()
-    
+
     peak_list[[n]] <- future_lapply(seq_along(1:nrow(peak_list[[n]])), function(x, activity, peaks) {
       gene_name <- peaks[x, 4]
       gene_name <- as.character(unlist(strsplit(gene_name, split="\\|")))
       mat_activity <- matrix(rep(activity[x,], length(gene_name)), nrow = length(gene_name), byrow = T)
       mat_activity <- list(mat=mat_activity, gene_name=gene_name )
     }, activity=as.matrix(activity_list[[n]]), peaks=as.matrix(peak_list[[n]]))
-    
+
     peak_list_mat <-  lapply(peak_list[[n]], function(x) {
         return(x[["mat"]])
       })
-   
+
     peak_list[[n]] <- lapply(peak_list[[n]], function(x) {
         return(x[["gene_name"]])
     })
     peak_list_mat <- do.call(rbind, peak_list_mat)
     peak_list_mat <- Matrix(as.matrix(peak_list_mat), sparse = T)
-    peak_list[[n]] <- Reduce(append, peak_list[[n]])  
+    peak_list[[n]] <- Reduce(append, peak_list[[n]])
     peak_list[[n]] <- list(mat = peak_list_mat, gene_name=peak_list[[n]])
     peak_list_mat <- c()
     end_time <- Sys.time()
@@ -507,10 +507,10 @@ give_activity <- function(gene_peaks, peak_matrix) {
   peak_list <- lapply(peak_list, function(x) {
       return(x[["gene_name"]])
   })
-    
+
   activity_overlap_comb <- do.call(rbind, activity_overlap_comb)
   peak_list <- Reduce(append, peak_list)
-  
+
   genes_overlap <- c(as.character(gene_peaks[,4]), peak_list )
   activity_gene_add <- rbind(peak_matrix,activity_overlap_comb)
   rownames(activity_gene_add) <- genes_overlap
@@ -681,7 +681,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
 
 #' @title Get combined overlapping peak set.
 #' @description This function takes the peaks which have been called on different samples, and thus could represent overlapping peaks with different start and or end positions to provide an overlapping peak set.
-#' @param atac_layer list of peak-cell count matrix of the different samples, with rows as peaks and cells as columns.
+#' @param atac_layer list of peak-cell count matrices of the different samples, with rows as peaks and cells as columns.
 #' @param filter_reg_chr logical. If \code{T}, only genes are included which are on regular chromosomes..
 #' @return GenomicRanges object of combined peaks of different samples of atac_layer list.
 #' @examples
@@ -755,7 +755,7 @@ peak_overlap <- function(peak_features=NULL, combined.peaks=NULL, do.aggregate=F
   if( class(as.numeric(peaks[[1]][2])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
   if( class(as.numeric(peaks[[1]][3])) != "numeric" ) {stop("peak_features need to contain numeric start and end")}
   peaks <- do.call(rbind, peaks)
-  
+
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   computing <- cores*1000
@@ -774,7 +774,7 @@ peak_overlap <- function(peak_features=NULL, combined.peaks=NULL, do.aggregate=F
       peak_end <- as.numeric(peaks[x,3])
       starts <- chr_index[[chr]][["starts"]]
       ends <- chr_index[[chr]][["ends"]]
-      
+
       mid1 <- starts <= peak_start ### peak on the gene
       mid2 <- ends >= peak_end
       gene_names <- chr_index[[chr]][["gene_names"]][mid1 & mid2]
@@ -837,7 +837,16 @@ merge_samples <- function(list.samples) {
   layer_merge
 }
 
-
+#' @title Replace per sample peaks with union of overlapping peaks and merge to common peak-cell matrix
+#' @description This function replaces peaks which have been called on different samples, representing overlapping peaks with different start and or end positions, with provided overlapping peaks representing the union of overlapping peaks e.g. output of combined.peaks-function. The harmonized common peak-sets facilitates merging of peak-cell matrices of different samples to a common peak-cell matrix.
+#' @param combined.peaks GenomicRanges object of combined peaks. Output of \code{give_combined_peaks} function.
+#' @param atac_layer list of peak-cell count matrices of the different samples, with rows as peaks and cells as columns.
+#' @param insert_run1 output of function with insert_run1 = \code{NULL}, i.e. vector of collapsed peaks across samples, for which per sample peaks have been replaced by the union of overlapping peaks.
+#' @return If \code{insert_run1} = \code{NULL}: vector of collapsed peaks across samples, for which per sample peaks have been replaced by the union of common overlapping peaks. If \code{insert_run1} = output of run with \code{insert_run1} = \code{NULL}, merged peak-cell sparse matrix across different samples with common overlapping peak set.
+#' @examples
+#' overlap_peaks <- merged_atac(combined.peaks = combined.peaks, atac_layer = atac_layer)
+#' overlap_peaks <- merged_atac(combined.peaks = combined.peaks, atac_layer = atac_layer, insert_run1=overlap_peaks)
+#' @export
 merged_atac <- function(combined.peaks, atac_layer, insert_run1=NULL) {
   if (is.null(insert_run1)) {
   start_time <- Sys.time()
@@ -862,13 +871,13 @@ merged_atac <- function(combined.peaks, atac_layer, insert_run1=NULL) {
     rownames(atac_layer[[i]]) <- insert_run1[(iterator+1):(iterator+boundaries[i])]
     iterator <- iterator + boundaries[i]
   }
-  
+
   peaks_combined <- data.frame(combined.peaks)
   peaks_combined <- paste0(peaks_combined[,1],":", peaks_combined[,2], "-", peaks_combined[,3])
   atac_layer <- lapply(seq_along(atac_layer), function(x, atac_layer,peaks_combined) {
     start_time <- Sys.time()
     feat_others <- peaks_combined[! peaks_combined %in% rownames(atac_layer[[x]])]
-    
+
     make_zero <- round(length(feat_others)/4)
     iterator <- 0
     for ( i in 1:4) {
@@ -903,7 +912,7 @@ merged_atac <- function(combined.peaks, atac_layer, insert_run1=NULL) {
     cat(paste("done", "time", difftime(end_time, start_time, units="secs"), "s", "\n", sep = " "))
     agg
   }, atac_layer=atac_layer)
-  
+
   atac_layer <- do.call(cbind, atac_layer)
   return(atac_layer)
   }
