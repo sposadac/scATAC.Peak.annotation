@@ -167,7 +167,7 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   start_time <- Sys.time()
-  plan(multisession,workers = cores )
+  plan(multicore,workers = cores )
 
   non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element, TSL) {
     index <- which(gene_element$gene_name == non_unique[x])
@@ -207,6 +207,7 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   names(anno_list) <- c("annotation", paste("transcript", paste(coding, collapse = "_"), sep = "_"))
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
+  plan(sequential)
   return(anno_list)
 }
 
@@ -314,7 +315,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   cat("start_overlapping_peaks", "\n")
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
-  plan(multisession,workers = cores )
+  plan(multicore,workers = cores )
   computing <- cores*1000
   peak_list <- create_data_chunks(peaks, computing)
 
@@ -436,6 +437,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
     rownames(peak_ongene) <-  paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])}
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
+  plan(sequential)
   return(peak_ongene)
 }
 
@@ -468,7 +470,7 @@ give_activity <- function(gene_peaks, peak_matrix) {
   peak_list <- create_data_chunks(gene_peaks_overlap, computing)
   activity_list <- create_data_chunks(activity_overlap, computing)
 
-  plan(multisession,workers = cores )
+  plan(multicore,workers = cores )
   activity_overlap <- c()
   gene_peaks_overlap <- c()
   n_processing <- 0
@@ -518,6 +520,7 @@ give_activity <- function(gene_peaks, peak_matrix) {
   activity_gene_add_sum <- aggregate.Matrix(activity_gene_add, as.factor(rownames(activity_gene_add)), fun = "sum")
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
+  plan(sequential)
   return(activity_gene_add_sum)
 }
 
@@ -586,7 +589,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   peak_list <- create_data_chunks(peaks_not_annotated, computing)
 
   peaks_not_annotated <- c()
-  plan(multisession,workers = cores )
+  plan(multicore,workers = cores )
   n_processing <- 0
   for (n in 1:length(peak_list)) {
 
@@ -675,6 +678,7 @@ peaks_closest_gene <- function(peaks, annotations=NULL, gene_element=NULL, TSSmo
   colnames(peaks_close) <- c("seqnames",                "Pstart"                 , "Pend"   , "peak_on_gene",           "strand"        ,          "TSSinfo"                ,"TSSdistance"       ,   "overlap.alter.TSS"   ,  "peaks_length"  ,         "closest_downstream_gene" ,"closest_gene" , "dist_clos_downstream"   , "dist_gene.edge_closest")
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
+  plan(sequential)
   return(peaks_close)
 }
 
