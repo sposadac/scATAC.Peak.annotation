@@ -318,21 +318,21 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       peak_start <- as.numeric(peak[x,2])
       peak_end <- as.numeric(peak[x,3])
 
-      left1 <- gene_starts >= peak_start ### peak overlap left or span the whole gene
+      left1 <- gene_starts > peak_start ### peak overlap left or span the whole gene
       left2 <- gene_starts <= peak_end
       right1 <- gene_ends >= peak_start ### peak overlap right or span the whole gene
-      right2 <- gene_ends <= peak_end
+      right2 <- gene_ends < peak_end
       mid1 <- gene_starts <= peak_start ### peak on the gene
       mid2 <- gene_ends >= peak_end
 
       # NOTE: since equalities are allowed, make sure we don't annotate peaks
       # redundantly (e.g., as peak on gene and also as gene-overlap)
-      gene_left <- chr_index[[chr]][["gene_ids"]][(left1 & left2) & !(mid1 & mid2)]
-      gene_right <- chr_index[[chr]][["gene_ids"]][(right1 & right2) & !(mid1 & mid2)]
+      gene_left <- chr_index[[chr]][["gene_ids"]][left1 & left2]
+      gene_right <- chr_index[[chr]][["gene_ids"]][right1 & right2]
       gene_mid <- chr_index[[chr]][["gene_ids"]][mid1 & mid2]
       if (TSSmode) { #### ad distance here TSS here
         if ( length(gene_left) > 0  ) {
-          index <- which((left1 & left2) & !(mid1 & mid2))
+          index <- which(left1 & left2)
           gene_names <- chr_index[[chr]][["gene_names"]][index]
           distances <- chr_index[[chr]][["TSSset"]][index]
           distances <- strsplit(distances, "\\|")
@@ -343,7 +343,7 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
            gene_left <- sub("\\;-;TSS.overlap.dist.+", ";-;.;.;.", gene_left)
         } ### do also for right and mid
         if (length(gene_right) > 0) {
-          index <- which((right1 & right2) & !(mid1 & mid2))
+          index <- which(right1 & right2)
           gene_names <- chr_index[[chr]][["gene_names"]][index]
           distances <- chr_index[[chr]][["TSSset"]][index]
           distances <- strsplit(distances, "\\|")
@@ -397,8 +397,8 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       }
       else{
         gene_ids <- c(gene_left, gene_right, gene_mid)
-        gene_names <- chr_index[[chr]][["gene_names"]][(left1 & left2) & !(mid1 & mid2)]
-        gene_names <- c(gene_names, chr_index[[chr]][["gene_names"]][(right1 & right2) & !(mid1 & mid2)])
+        gene_names <- chr_index[[chr]][["gene_names"]][left1 & left2]
+        gene_names <- c(gene_names, chr_index[[chr]][["gene_names"]][right1 & right2])
         gene_names <- c(gene_names, chr_index[[chr]][["gene_names"]][mid1 & mid2])
         if (length(gene_ids) > 1) {
             gene_names <- gene_names[!duplicated(gene_ids)]
