@@ -45,7 +45,7 @@ stardardize_chr_names <- function(peaks, annotation) {
               "chromosomes"=chromosomes))
 }
 
-#' @importFrom future availableCores plan multisession
+#' @importFrom future availableCores plan multicore
 #' @import future.apply
 #' @import Matrix
 #' @import Matrix.utils
@@ -765,7 +765,7 @@ peak_overlap <- function(peak_features=NULL, combined.peaks=NULL, do.aggregate=F
   computing <- cores*1000
   peak_list <- create_data_chunks(peaks, computing)
   peaks <- c()
-  plan(multisession,workers = cores )
+  plan(multicore,workers = cores )
   n_processing <- 0
   for (n in 1:length(peak_list)) {
     cat("get overlapping peaks", "\n")
