@@ -167,7 +167,7 @@ get_annotation <- function(path_gtf, skip=5, coding="protein_coding", filter_reg
   cores <- as.numeric(availableCores() -2)
   cat("available_cores:", cores, "\n")
   start_time <- Sys.time()
-  plan(multicore,workers = cores )
+  plan(future::multicore,workers = cores )
 
   non_unique_collapse <- future.apply::future_lapply(seq_along(non_unique), function(x, non_unique, gene_element, TSL) {
     index <- which(gene_element$gene_name == non_unique[x])
