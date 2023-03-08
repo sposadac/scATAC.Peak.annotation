@@ -325,8 +325,6 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
       mid1 <- gene_starts <= peak_start ### peak on the gene
       mid2 <- gene_ends >= peak_end
 
-      # NOTE: since equalities are allowed, make sure we don't annotate peaks
-      # redundantly (e.g., as peak on gene and also as gene-overlap)
       gene_left <- chr_index[[chr]][["gene_ids"]][left1 & left2]
       gene_right <- chr_index[[chr]][["gene_ids"]][right1 & right2]
       gene_mid <- chr_index[[chr]][["gene_ids"]][mid1 & mid2]
