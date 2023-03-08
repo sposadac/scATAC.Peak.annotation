@@ -423,14 +423,16 @@ peaks_on_gene <- function(peak_features,annotations=NULL, gene_element=NULL, spl
   rownames(peak_ongene) <- paste0(peak_ongene[,1],":", peak_ongene[,2], "-", peak_ongene[,3])
   if (TSSmode==T){
     colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "gene_id", "peak_on_gene", "strand", "TSSinfo", "TSSdistance", "overlap.alter.TSS")
+    # NOTE: peak length should only be return for TSSmode == T. This is because,
+    # TSS mode == F is designed to be used prior to give_activity
+    peaks_length <- apply(peak_ongene, 1, function(x) {
+      length(as.numeric(x[2]):as.numeric(x[3]))
+    })
+    peak_ongene<- cbind(peak_ongene, peaks_length=peaks_length)
   }
   else{
     colnames(peak_ongene) <- c("seqnames", "Pstart", "Pend", "gene_id", "peak_on_gene")
   }
-  peaks_length <- apply(peak_ongene, 1, function(x) {
-    length(as.numeric(x[2]):as.numeric(x[3]))
-  })
-  peak_ongene<- cbind(peak_ongene, peaks_length=peaks_length)
   end_time2 <- Sys.time()
   cat(paste("overall computing", "time", difftime(end_time2, start_time2, units="secs"), "s", "\n", sep = " "))
   plan(future::sequential)
